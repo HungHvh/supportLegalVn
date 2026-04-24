@@ -3,3 +3,6 @@ datasets
 qdrant-client
 sentence-transformers
 langchain-text-splitters
+pydantic-settings
+python-dotenv
+google-generativeai

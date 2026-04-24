@@ -22,6 +22,7 @@ legal_poc.db
 .idea/
 .vscode/
 
-# Local data (if any)
+# Local data
 data/
+qdrant_data/
 outputs/
