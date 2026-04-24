@@ -35,6 +35,7 @@ def init_db(db_path: str = "legal_poc.db"):
     # 2. Bảng ảo FTS5 (External Content)
     # Sử dụng content='legal_documents' để tránh nhân đôi dữ liệu 3.6GB
     # Tokenize unicode61 để hỗ trợ tiếng Việt có dấu
+    # dùng để đánh inverted index cho 2 trường này (so_ky_hieu, content), key là từ khóa, value là id của document
     cursor.execute("""
     CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(
         so_ky_hieu,

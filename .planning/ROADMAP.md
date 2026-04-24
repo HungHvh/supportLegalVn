@@ -6,7 +6,7 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 
 ## Phases
 
-- [ ] **Phase 1: Persistent Foundation** - Dockerized Qdrant and optimized SQLite setup.
+- [x] **Phase 1: Persistent Foundation** - Dockerized Qdrant and optimized SQLite setup.
 - [ ] **Phase 2: Full Scale Indexing** - Background worker for 3.6GB dataset ingestion.
 - [ ] **Phase 3: Smart Retrieval & RAG** - Gemini classification and citation-aware generation.
 - [ ] **Phase 4: Backend API Delivery** - FastAPI endpoint and pipeline integration.
@@ -22,8 +22,8 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
   2. SQLite schema is created with FTS5 enabled.
   3. `.env` system is working for API keys (Gemini, HuggingFace).
 **Plans**: 2 plans
-- [ ] 01-01: Docker and Environment configuration.
-- [ ] 01-02: Optimized Database Schema (SQLite + Qdrant init).
+- [x] 01-01: Docker and Environment configuration.
+- [x] 01-02: Optimized Database Schema (SQLite + Qdrant init).
 
 ### Phase 2: Full Scale Indexing
 **Goal**: Process the complete 3.6GB dataset into the persistent databases.
@@ -63,7 +63,7 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Persistent Foundation | 0/2 | Not started | - |
+| 1. Persistent Foundation | 2/2 | Complete | 2026-04-24 |
 | 2. Full Scale Indexing | 0/2 | Not started | - |
 | 3. Smart Retrieval & RAG | 0/2 | Not started | - |
 | 4. Backend API Delivery | 0/1 | Not started | - |

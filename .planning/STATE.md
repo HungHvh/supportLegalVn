@@ -9,9 +9,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Current Status
 
-- **Status**: Initialization Complete
-- **Phase**: 1
-- **Next Step**: Start Phase 1 (Infrastructure & Docker setup)
+- **Status**: Phase 1 Complete
+- **Phase**: 2
+- **Next Step**: Start Phase 2 (Full Scale Indexing)
 
 ## Milestones
 
@@ -19,8 +19,8 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Recent Activity
 
+- **2026-04-24**: Phase 1 completed: Docker/Qdrant infrastructure and optimized SQLite layer (FTS5 + Vietnamese) established.
 - **2026-04-24**: Project initialized with Coarse granularity, YOLO mode, and Parallel execution.
-- **2026-04-24**: Created PROJECT.md, REQUIREMENTS.md, and ROADMAP.md.
 
 ---
 *Last updated: 2026-04-24*
