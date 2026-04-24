@@ -9,9 +9,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Current Status
 
-- **Status**: Phase 1 Complete
-- **Phase**: 2
-- **Next Step**: Start Phase 2 (Full Scale Indexing)
+- **Status**: Phase 2 Complete
+- **Phase**: 3
+- **Next Step**: Start Phase 3 (Smart Retrieval & RAG)
 
 ## Milestones
 

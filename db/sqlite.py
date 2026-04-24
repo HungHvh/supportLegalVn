@@ -32,6 +32,14 @@ def init_db(db_path: str = "legal_poc.db"):
         domain TEXT
     );
     """)
+
+    # 1.1 Bảng theo dõi tiến độ (Idempotency)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS indexing_status (
+        doc_id TEXT PRIMARY KEY,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
     
     # 2. Bảng ảo FTS5 (External Content)
     # Sử dụng content='legal_documents' để tránh nhân đôi dữ liệu 3.6GB
@@ -69,6 +77,18 @@ def init_db(db_path: str = "legal_poc.db"):
     
     conn.commit()
     conn.close()
+
+def is_processed(conn: sqlite3.Connection, doc_id: str) -> bool:
+    """Kiểm tra xem document đã được xử lý chưa."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM indexing_status WHERE doc_id = ?", (doc_id,))
+    return cursor.fetchone() is not None
+
+def mark_as_processed(conn: sqlite3.Connection, doc_id: str):
+    """Đánh dấu document là đã xử lý xong."""
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO indexing_status (doc_id) VALUES (?)", (doc_id,))
+    conn.commit()
 
 if __name__ == "__main__":
     init_db()
