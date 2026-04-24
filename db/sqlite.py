@@ -24,7 +24,8 @@ def init_db(db_path: str = "legal_poc.db"):
     # 1. Bảng lưu Metadata gốc
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS legal_documents (
-        id TEXT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id TEXT UNIQUE,
         so_ky_hieu TEXT,
         headers TEXT,
         content TEXT,
