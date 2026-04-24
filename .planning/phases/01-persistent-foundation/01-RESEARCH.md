@@ -43,7 +43,8 @@ To handle 3.6GB efficiently, standard SQLite defaults are insufficient:
 
 ### Optimized FTS5 Strategy
 *   **External Content Tables**: The most critical optimization for Phase 1. By pointing the FTS5 virtual table to an external metadata table, we avoid duplicating the 3.6GB of text in the index.
-*   **FTS5 Optimization**: Periodically running `INSERT INTO fts_table(fts_table) VALUES('optimize');` merges segment trees to maintain query speed as the index grows.
+*   **Vietnamese Tokenization**: Use `tokenize='unicode61 remove_diacritics 0'` to correctly handle Vietnamese characters and preserve diacritics, which is essential for legal precision.
+*   **FTS5 Optimization**: Periodically running `INSERT INTO fts_table(fts_table) VALUES('optimize');` merges segment trees.
 
 ## 3. Embedding Interface (Decoupling)
 
@@ -56,11 +57,11 @@ from typing import List
 
 class EmbeddingProvider(ABC):
     @abstractmethod
-    def get_embedding(self, text: str) -> List[float]:
+    async def get_embedding(self, text: str) -> List[float]:
         pass
 
     @abstractmethod
-    def batch_get_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def batch_get_embeddings(self, texts: List[str]) -> List[List[float]]:
         pass
 ```
 

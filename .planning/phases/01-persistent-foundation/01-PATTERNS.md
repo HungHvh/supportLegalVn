@@ -30,8 +30,8 @@ Map existing prototype patterns in `main.py` to the new persistent architecture.
 - `db/sqlite.py`: Manage SQLite connection, WAL mode activation, and schema migrations.
 
 ### Interface Implementation (`services/embeddings.py`)
-- Define `BaseEmbedder` interface.
-- Implement `VietnameseSBERT` concrete class.
+- Define `BaseEmbedder` interface with `async` methods.
+- Implement `VietnameseSBERT` concrete class (compatible with `async`).
 
 ---
 *Patterns Mapped: 2026-04-24*
