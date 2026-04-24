@@ -7,7 +7,7 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 ## Phases
 
 - [x] **Phase 1: Persistent Foundation** - Dockerized Qdrant and optimized SQLite setup.
-- [ ] **Phase 2: Full Scale Indexing** - Background worker for 3.6GB dataset ingestion.
+- [x] **Phase 2: Full Scale Indexing** - Background worker for 3.6GB dataset ingestion.
 - [ ] **Phase 3: Smart Retrieval & RAG** - Gemini classification and citation-aware generation.
 - [ ] **Phase 4: Backend API Delivery** - FastAPI endpoint and pipeline integration.
 
@@ -34,8 +34,8 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
   2. Data is persistent in Qdrant and SQLite after script completion.
   3. Progress is observable via logs/status.
 **Plans**: 2 plans
-- [ ] 02-01: Background Indexer Implementation (Streaming & Chunking).
-- [ ] 02-02: Progress Tracking and Idempotency logic.
+- [x] 02-01: Background Indexer Implementation (Streaming & Chunking).
+- [x] 02-02: Progress Tracking and Idempotency logic.
 
 ### Phase 3: Smart Retrieval & RAG
 **Goal**: Implement the specialized legal classifier and the full retrieval/generation logic.
@@ -64,7 +64,7 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Persistent Foundation | 2/2 | Complete | 2026-04-24 |
-| 2. Full Scale Indexing | 0/2 | Not started | - |
+| 2. Full Scale Indexing | 2/2 | Complete | 2026-04-24 |
 | 3. Smart Retrieval & RAG | 0/2 | Not started | - |
 | 4. Backend API Delivery | 0/1 | Not started | - |
 

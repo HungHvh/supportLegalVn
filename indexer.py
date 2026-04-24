@@ -26,73 +26,103 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 1000))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 200))
 COLLECTION_NAME = "legal_chunks"
 
-async def process_batch(batch: List[Dict], embed_provider: VietnameseSBERTProvider, q_mgr: QdrantManager, db_conn):
-    """Xử lý và lưu một batch dữ liệu vào Qdrant và SQLite."""
+async def process_batch(batch: List[Dict], doc_ids: List[str], embed_provider: VietnameseSBERTProvider, q_mgr: QdrantManager, db_conn):
+    """
+    Process and save a batch of data to Qdrant and SQLite.
+    
+    Args:
+        batch: List of chunk dictionaries.
+        doc_ids: List of document IDs being committed in this batch.
+        embed_provider: Provider for embeddings.
+        q_mgr: Manager for Qdrant operations.
+        db_conn: SQLite database connection.
+    """
     if not batch:
         return
 
-    texts = [item['content'] for item in batch]
-    embeddings = await embed_provider.batch_get_embeddings(texts)
-    
-    points = []
-    cursor = db_conn.cursor()
-    
-    for item, vector in zip(batch, embeddings):
-        # 1. Chuẩn bị cho Qdrant
-        points.append(
-            models.PointStruct(
-                id=item['chunk_id'],
-                vector=vector,
-                payload={
-                    "doc_id": item['doc_id'], 
-                    "so_ky_hieu": item['so_ky_hieu'],
-                    "headers": item['headers']
-                }
+    try:
+        texts = [item['content'] for item in batch]
+        embeddings = await embed_provider.batch_get_embeddings(texts)
+        
+        points = []
+        cursor = db_conn.cursor()
+        
+        for item, vector in zip(batch, embeddings):
+            # 1. Qdrant point
+            points.append(
+                models.PointStruct(
+                    id=item['chunk_id'],
+                    vector=vector,
+                    payload={
+                        "doc_id": item['doc_id'], 
+                        "so_ky_hieu": item['so_ky_hieu'],
+                        "headers": item['headers']
+                    }
+                )
             )
-        )
-        # 2. Lưu vào SQLite
-        cursor.execute(
-            "INSERT INTO legal_documents (doc_id, so_ky_hieu, headers, content) VALUES (?, ?, ?, ?)",
-            (item['doc_id'], item['so_ky_hieu'], str(item['headers']), item['content'])
-        )
+            # 2. SQLite record
+            cursor.execute(
+                "INSERT INTO legal_documents (doc_id, so_ky_hieu, headers, content) VALUES (?, ?, ?, ?)",
+                (item['doc_id'], item['so_ky_hieu'], str(item['headers']), item['content'])
+            )
 
-    # 3. Upsert Qdrant
-    q_mgr.client.upsert(collection_name=COLLECTION_NAME, points=points)
+        # 3. Upsert Qdrant (Retry logic could be added here)
+        q_mgr.client.upsert(collection_name=COLLECTION_NAME, points=points)
+        
+        # 4. Mark all doc_ids in this batch as processed
+        for d_id in doc_ids:
+            cursor.execute("INSERT OR IGNORE INTO indexing_status (doc_id) VALUES (?)", (d_id,))
+            
+        # 5. Commit everything atomically
+        db_conn.commit()
+        logger.info(f"Successfully processed batch of {len(batch)} chunks for {len(doc_ids)} documents.")
+        
+    except Exception as e:
+        db_conn.rollback()
+        logger.error(f"Error processing batch: {e}", exc_info=True)
+        raise
+
+async def run_indexer(limit: int = None):
+    """
+    Main ingestion loop.
     
-    # Commit SQLite
-    db_conn.commit()
-
-async def run_indexer():
-    init_db()  # Khởi tạo bảng nếu chưa có
+    Args:
+        limit: Optional number of documents to process for testing.
+    """
+    init_db()
     db_conn = get_db_connection()
     q_mgr = QdrantManager()
     q_mgr.init_collection(COLLECTION_NAME)
     embed_provider = VietnameseSBERTProvider()
 
-    # 1. Tải Metadata vào RAM (82MB)
     logger.info("Loading metadata configuration...")
-    meta_ds = load_dataset("vohuutridung/vietnamese-legal-documents", "metadata", split="data")
-    meta_lookup = {row['id']: row for row in meta_ds}
-    logger.info(f"Loaded {len(meta_lookup)} metadata records.")
+    try:
+        meta_ds = load_dataset("vohuutridung/vietnamese-legal-documents", "metadata", split="data")
+        meta_lookup = {row['id']: row for row in meta_ds}
+        logger.info(f"Loaded {len(meta_lookup)} metadata records.")
+    except Exception as e:
+        logger.error(f"Failed to load metadata: {e}")
+        return
 
-    # 2. Stream Content configuration (3.6GB)
     logger.info("Connecting to content stream...")
     content_ds = load_dataset("vohuutridung/vietnamese-legal-documents", "content", split="data", streaming=True)
 
-    # 3. Khởi tạo Splitters
     headers_to_split_on = [("#", "H1"), ("##", "H2"), ("###", "H3")]
     md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
     length_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
 
     batch_buffer = []
+    current_doc_ids = []
+    processed_count = 0
     
     logger.info("Starting ingestion loop...")
-    # Vì stream không có độ dài cụ thể ngay lập tức, ta dùng đếm thủ công nếu cần
     for row in tqdm(content_ds, desc="Indexing Legal Documents"):
+        if limit and processed_count >= limit:
+            break
+
         doc_id_int = row['id']
         doc_id_str = str(doc_id_int)
         
-        # Idempotency check
         if is_processed(db_conn, doc_id_str):
             continue
 
@@ -100,10 +130,8 @@ async def run_indexer():
         meta = meta_lookup.get(doc_id_int, {})
         so_ky_hieu = str(meta.get("document_number", "N/A"))
 
-        # Bước 1: Chia theo Markdown headers
+        # Chunking
         md_splits = md_splitter.split_text(raw_text)
-        
-        # Bước 2: Chia nhỏ các đoạn quá dài
         doc_chunks = []
         for split in md_splits:
             if len(split.page_content) > CHUNK_SIZE:
@@ -126,28 +154,17 @@ async def run_indexer():
                     "content": split.page_content
                 })
 
-        # Thêm vào batch buffer
         batch_buffer.extend(doc_chunks)
+        current_doc_ids.append(doc_id_str)
+        processed_count += 1
 
-        # Nếu buffer vượt ngưỡng, xử lý batch
-        # Chú ý: Ta chỉ đánh dấu doc_id là processed KHI batch chứa nó đã được commit.
-        # Để đơn giản, ta sẽ flush batch sau mỗi X doc_id hoặc khi buffer đủ lớn.
         if len(batch_buffer) >= BATCH_SIZE:
-            await process_batch(batch_buffer, embed_provider, q_mgr, db_conn)
-            # Sau khi batch buffer thành công, ta mới có thể coi các doc_id trong batch đó là ok.
-            # Tuy nhiên, một doc_id có thể nằm trọn trong một batch. 
-            # Đánh dấu doc_id hiện tại đã xong.
-            mark_as_processed(db_conn, doc_id_str)
+            await process_batch(batch_buffer, current_doc_ids, embed_provider, q_mgr, db_conn)
             batch_buffer = []
-        else:
-            # Vẫn đánh dấu doc_id là processed nếu nó đã được nạp vào buffer 
-            # (chấp nhận rủi ro mất 1 batch nếu crash, nhưng thực tế mark_as_processed commit ngay)
-            # Để an toàn nhất, nên mark_as_processed cùng transaction với batch.
-            mark_as_processed(db_conn, doc_id_str)
+            current_doc_ids = []
 
-    # Flush remaining buffer
     if batch_buffer:
-        await process_batch(batch_buffer, embed_provider, q_mgr, db_conn)
+        await process_batch(batch_buffer, current_doc_ids, embed_provider, q_mgr, db_conn)
 
     db_conn.close()
     logger.info("🎉 Ingestion completed successfully!")

@@ -76,7 +76,7 @@ async def test_batch_processing_logic(mock_db):
         }
     ]
     
-    await process_batch(test_batch, embed_provider, q_mgr, mock_db)
+    await process_batch(test_batch, ["d1"], embed_provider, q_mgr, mock_db)
     
     # Verify SQLite entry
     cursor = mock_db.cursor()
