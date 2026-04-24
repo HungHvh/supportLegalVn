@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  legal-poc:
+    build: .
+    container_name: legal-poc-container
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Local cache to avoid re-downloading large models/datasets
+      - HF_HOME=/app/.cache/huggingface
+      - SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+    stdin_open: true
+    tty: true

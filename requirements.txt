@@ -1,0 +1,5 @@
+pandas
+datasets
+qdrant-client
+sentence-transformers
+langchain-text-splitters
