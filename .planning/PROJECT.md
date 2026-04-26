@@ -12,15 +12,16 @@ Provide accurate, context-aware legal information from the full Vietnamese legal
 
 ### Validated
 
-- ✓ **Hybrid Search Prototype** — Basic retrieval using Qdrant (in-memory) and SQLite FTS5 is functional in `main.py`.
+- ✓ **Hybrid Search Prototype** — Basic retrieval using Qdrant (in-memory) and SQLite FTS5 is functional.
+- ✓ **Infrastructure Scaling** — Persistent Qdrant (Docker) and optimized SQLite established (Phase 1).
+- ✓ **Automated Indexer** — Background worker for full HF dataset processing (Phase 2).
+- ✓ **Query Classification** — Gemini-based domain detection for high-precision retrieval (Phase 3).
+- ✓ **Full RAG Pipeline** — Integrated pipeline with IRAC generation and citation enforcement (Phase 3).
+- ✓ **FastAPI Backend API** — Async API with streaming support and Dockerization (Phase 4).
 
 ### Active
 
-- [ ] **Infrastructure Scaling** — Migrate to persistent Qdrant in Docker and optimized SQLite storage for a 3.6GB dataset.
-- [ ] **Automated Indexer** — Separate worker script to process the full Hugging Face dataset (Vietnamese legal documents) into the vector and metadata databases.
-- [ ] **Query Classification** — Gemini-based classifier to categorize user queries into specific legal domains before retrieval.
-- [ ] **Full RAG Pipeline** — Integrated FastAPI backend that classifies, retrieves, and generates answers using Gemini.
-- [ ] **FastAPI Backend API** — Clean API surface for interacting with the RAG system.
+- [ ] **Frontend Integration** — Connect the backend API to a web or chat interface.
 
 ### Out of Scope
 

@@ -2,13 +2,7 @@ import pytest
 import sqlite3
 import uuid
 import os
-import sys
 from unittest.mock import MagicMock
-sys.modules["sentence_transformers"] = MagicMock()
-sys.modules["sentence_transformers"].__spec__ = MagicMock()
-sys.modules["torch"] = MagicMock()
-sys.modules["torch"].__spec__ = MagicMock()
-
 import indexer
 from db.sqlite import init_db, get_db_connection, is_processed, mark_as_processed
 
