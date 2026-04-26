@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 
 from db.sqlite import get_db_connection, is_processed, mark_as_processed, init_db
 from db.qdrant import QdrantManager
-from core.embeddings import VietnameseSBERTProvider
+from core.embeddings import VietnameseSBERTProvider, HybridEmbeddingProvider
+from core.parser import VietnameseLegalParser, LegalNode
 
 # Load environment
 load_dotenv()
@@ -41,29 +42,34 @@ async def process_batch(batch: List[Dict], doc_ids: List[str], embed_provider: V
         return
 
     try:
-        texts = [item['content'] for item in batch]
-        embeddings = await embed_provider.batch_get_embeddings(texts)
+        # Get Hybrid Embeddings (Dense + Sparse)
+        texts_for_embedding = [item['content_for_embedding'] for item in batch]
+        hybrid_embeddings = await embed_provider.get_hybrid_embeddings(texts_for_embedding)
         
         points = []
         cursor = db_conn.cursor()
         
-        for item, vector in zip(batch, embeddings):
+        for item, vectors in zip(batch, hybrid_embeddings):
             # 1. Qdrant point
             points.append(
                 models.PointStruct(
                     id=item['chunk_id'],
-                    vector=vector,
+                    vector={
+                        "dense": vectors["dense"],
+                        "sparse": vectors["sparse"]
+                    },
                     payload={
                         "doc_id": item['doc_id'], 
                         "so_ky_hieu": item['so_ky_hieu'],
-                        "headers": item['headers']
+                        "full_path": item['full_path'],
+                        "level": item['level']
                     }
                 )
             )
             # 2. SQLite record
             cursor.execute(
-                "INSERT INTO legal_documents (doc_id, so_ky_hieu, headers, content) VALUES (?, ?, ?, ?)",
-                (item['doc_id'], item['so_ky_hieu'], str(item['headers']), item['content'])
+                "INSERT INTO legal_documents (doc_id, so_ky_hieu, full_path, content) VALUES (?, ?, ?, ?)",
+                (item['doc_id'], item['so_ky_hieu'], item['full_path'], item['content'])
             )
 
         # 3. Upsert Qdrant (Retry logic could be added here)
@@ -93,7 +99,9 @@ async def run_indexer(limit: int = None):
     db_conn = get_db_connection()
     q_mgr = QdrantManager()
     q_mgr.init_collection(COLLECTION_NAME)
-    embed_provider = VietnameseSBERTProvider()
+    dense_provider = VietnameseSBERTProvider()
+    embed_provider = HybridEmbeddingProvider(dense_provider)
+    parser = VietnameseLegalParser()
 
     logger.info("Loading metadata configuration...")
     try:
@@ -126,33 +134,37 @@ async def run_indexer(limit: int = None):
         if is_processed(db_conn, doc_id_str):
             continue
 
-        raw_text = row['text']
+        raw_text = row['content']
         meta = meta_lookup.get(doc_id_int, {})
         so_ky_hieu = str(meta.get("document_number", "N/A"))
 
-        # Chunking
-        md_splits = md_splitter.split_text(raw_text)
+        # Hierarchical Chunking
+        root_node = parser.parse_document(raw_text, law_name=so_ky_hieu)
+        
+        # Flatten the tree into chunks
         doc_chunks = []
-        for split in md_splits:
-            if len(split.page_content) > CHUNK_SIZE:
-                sub_splits = length_splitter.split_text(split.page_content)
-                headers = split.metadata
-                for sub in sub_splits:
-                    doc_chunks.append({
-                        "chunk_id": str(uuid.uuid4()),
-                        "doc_id": doc_id_str,
-                        "so_ky_hieu": so_ky_hieu,
-                        "headers": headers,
-                        "content": sub
-                    })
-            else:
+        
+        def collect_chunks(node: LegalNode):
+            # Only index nodes that have content (usually Clause or Point)
+            # or Articles if they are short enough.
+            if node.content and len(node.content.strip()) > 20:
+                # Context Injection: Prefix with breadcrumb
+                enriched_text = f"[{node.full_path}] \n {node.content}"
+                
                 doc_chunks.append({
                     "chunk_id": str(uuid.uuid4()),
                     "doc_id": doc_id_str,
                     "so_ky_hieu": so_ky_hieu,
-                    "headers": split.metadata,
-                    "content": split.page_content
+                    "full_path": node.full_path,
+                    "level": node.level,
+                    "content": node.content,
+                    "content_for_embedding": enriched_text
                 })
+            
+            for child in node.children:
+                collect_chunks(child)
+
+        collect_chunks(root_node)
 
         batch_buffer.extend(doc_chunks)
         current_doc_ids.append(doc_id_str)

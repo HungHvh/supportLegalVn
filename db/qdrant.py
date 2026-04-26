@@ -7,18 +7,28 @@ class QdrantManager:
 
     def init_collection(self, collection_name: str, vector_size: int = 768):
         """
-        Khởi tạo collection nếu chưa tồn tại.
-        Mặc định dùng Cosine similarity cho Vietnamese-SBERT.
+        Khởi tạo collection với cấu trúc Hybrid (Dense + Sparse).
         """
         if not self.client.collection_exists(collection_name):
             self.client.create_collection(
                 collection_name=collection_name,
-                vectors_config=models.VectorParams(
-                    size=vector_size,
-                    distance=models.Distance.COSINE
-                )
+                vectors_config={
+                    "dense": models.VectorParams(
+                        size=vector_size,
+                        distance=models.Distance.COSINE
+                    )
+                },
+                sparse_vectors_config={
+                    "sparse": models.SparseVectorParams(
+                        index=models.SparseIndexParams(on_disk=False)
+                    )
+                }
             )
-            print(f"[OK] Collection '{collection_name}' created in Qdrant.")
+            print(f"[OK] Hybrid Collection '{collection_name}' created in Qdrant.")
+            
+            # Tạo index cho payload để lọc nhanh
+            self.client.create_payload_index(collection_name, "doc_id", models.PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "law_name", models.PayloadSchemaType.KEYWORD)
         else:
             print(f"[INFO] Collection '{collection_name}' already exists.")
 

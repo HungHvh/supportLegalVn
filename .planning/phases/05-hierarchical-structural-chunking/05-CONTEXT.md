@@ -8,11 +8,20 @@ Văn bản pháp luật Việt Nam có tính phân cấp cực kỳ rõ ràng. V
 - **Mất bối cảnh**: Một Điều luật có thể bị cắt đôi, làm mất đi các ngoại lệ ở Khoản sau.
 - **Nhiễu thông tin**: Một chunk chứa nửa cuối của Điều này và nửa đầu của Điều kia.
 
-## 3. Scope
-- **Regex-based Parser**: Identify structural markers like `Phần`, `Chương`, `Mục`, `Điều`, `Khoản`, `Điểm`.
-- **Metadata Inheritance**: Inject parent titles into the chunk payload.
-- **Data Cleaning**: Normalize markers and clean PDF extraction artifacts.
-- **Indexer Update**: Refactor `indexer.py` to use the new parser.
+## 3. Implementation Decisions
+
+### 3.1 Data Extraction & Parsing (Hybrid Pipeline)
+- **Step 1: Layout & OCR**: Use specialized libraries (`marker-pdf`, `unstructured.io`, or `LlamaParse`) to convert raw PDF/Scan/Messy text into clean, structural Markdown. This step handles OCR, table extraction, and header/footer removal.
+- **Step 2: Semantic Regex**: Apply custom Regex (e.g., `^Điều \d+\.`, `^Chương [IXV]+`) on the *cleaned* Markdown from Step 1 to identify the legal hierarchy.
+
+### 3.2 Context Injection (Document Enrichment)
+- **Mandatory Technique**: Every chunk must be prefixed with a hierarchical header before embedding and indexing.
+- **Format**: `[Law Name > Chapter > Article > Clause] \n [Chunk Content]`
+- **Goal**: Improve semantic retrieval (vector space) and keyword matching (FTS/BM25) by making the context explicit in the indexed text.
+
+### 3.3 Metadata Schema
+- **Redundancy**: Hierarchical info must be stored BOTH inside the chunk text (for search) and in the Payload (for hard filtering).
+- **Fields**: `law_id`, `law_name`, `year`, `chapter`, `article`, `clause`, `full_path`.
 
 ## 4. Technical Constraints
 - Must handle 3.6GB dataset efficiently (streaming).

@@ -21,13 +21,13 @@ def init_db(db_path: str = "legal_poc.db"):
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
     
-    # 1. Bảng lưu Metadata gốc
+    # 1. Bảng lưu Metadata gốc (Sửa: bỏ UNIQUE doc_id để lưu nhiều chunks)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS legal_documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        doc_id TEXT UNIQUE,
+        doc_id TEXT,
         so_ky_hieu TEXT,
-        headers TEXT,
+        full_path TEXT,
         content TEXT,
         domain TEXT
     );

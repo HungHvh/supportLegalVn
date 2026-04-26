@@ -10,7 +10,8 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 - [x] **Phase 2: Full Scale Indexing** - Background worker for 3.6GB dataset ingestion.
 - [x] **Phase 3: Smart Retrieval & RAG** - Gemini classification and citation-aware generation.
 - [x] **Phase 4: Backend API Delivery** - FastAPI endpoint and pipeline integration.
-- [ ] **Phase 5: Hierarchical Structural Chunking** - Legal-specific parsing and metadata inheritance.
+- [x] **Phase 5: Hierarchical Structural Chunking** - Legal-specific parsing and metadata inheritance.
+- [ ] **Phase 6: Retrieval Evaluation** - Qualitative and Quantitative RAG metrics comparison.
 
 ## Phase Details
 
@@ -70,8 +71,19 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
   2. Metadata includes parent context (Chương, Điều) for every chunk.
   3. Retrieval precision improved for cross-referenced clauses.
 **Plans**: 2 plans
-- [ ] 05-01: Regex-based Legal Structure Parser.
-- [ ] 05-02: Hierarchical Indexing Integration.
+- [x] 05-01: Regex-based Legal Structure Parser.
+- [x] 05-02: Hierarchical Indexing Integration.
+
+### Phase 6: Retrieval Evaluation
+**Goal**: Measure the performance gains of the hierarchical hybrid retrieval system.
+**Depends on**: Phase 5
+**Requirements**: EVA-01
+**Success Criteria**:
+  1. Test set of 20+ complex legal queries created.
+  2. Baseline (Phase 2) vs New (Phase 5) comparison report generated.
+  3. Metric: Hit Rate and MRR (Mean Reciprocal Rank) improvements verified.
+**Plans**: 1 plan
+- [ ] 06-01: Retrieval Performance Benchmark.
 
 ## Progress
 
@@ -81,7 +93,8 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 | 2. Full Scale Indexing | 2/2 | Complete | 2026-04-24 |
 | 3. Smart Retrieval & RAG | 2/2 | Complete | 2026-04-26 |
 | 4. Backend API Delivery | 2/2 | Complete | 2026-04-26 |
-| 5. Hierarchical Structural Chunking | 0/2 | Active | — |
+| 5. Hierarchical Structural Chunking | 2/2 | Complete | 2026-04-26 |
+| 6. Retrieval Evaluation | 0/1 | Active | — |
 
 ---
 *Last updated: 2026-04-26*
