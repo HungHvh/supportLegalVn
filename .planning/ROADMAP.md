@@ -8,8 +8,9 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 
 - [x] **Phase 1: Persistent Foundation** - Dockerized Qdrant and optimized SQLite setup.
 - [x] **Phase 2: Full Scale Indexing** - Background worker for 3.6GB dataset ingestion.
-- [ ] **Phase 3: Smart Retrieval & RAG** - Gemini classification and citation-aware generation.
-- [ ] **Phase 4: Backend API Delivery** - FastAPI endpoint and pipeline integration.
+- [x] **Phase 3: Smart Retrieval & RAG** - Gemini classification and citation-aware generation.
+- [x] **Phase 4: Backend API Delivery** - FastAPI endpoint and pipeline integration.
+- [ ] **Phase 5: Hierarchical Structural Chunking** - Legal-specific parsing and metadata inheritance.
 
 ## Phase Details
 
@@ -46,8 +47,8 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
   2. Retrieval uses domains as metadata filters to improve precision.
   3. LLM summarizes results with citations to specific laws.
 **Plans**: 2 plans
-- [ ] 03-01: LLM Classifier and Metadata Filtering.
-- [ ] 03-02: Generation Pipeline with Citations.
+- [x] 03-01: LLM Classifier and Metadata Filtering.
+- [x] 03-02: Generation Pipeline with Citations.
 
 ### Phase 4: Backend API Delivery
 **Goal**: Expose the RAG pipeline via a clean FastAPI backend.
@@ -57,7 +58,20 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
   1. `/ask` endpoint returns accurate legal answers.
   2. API is robust and ready for frontend integration.
 **Plans**: 1 plan
-- [ ] 04-01: FastAPI Backend and Endpoint integration.
+- [x] 04-01: FastAPI Backend and Endpoint integration.
+- [x] 04-02: Streaming Integration and Dockerization.
+
+### Phase 5: Hierarchical Structural Chunking
+**Goal**: Implement specialized parsing for Vietnamese legal documents to preserve semantic integrity.
+**Depends on**: Phase 2, Phase 4
+**Requirements**: ING-02
+**Success Criteria**:
+  1. Regex-based parser correctly identifies Điều, Khoản, Điểm.
+  2. Metadata includes parent context (Chương, Điều) for every chunk.
+  3. Retrieval precision improved for cross-referenced clauses.
+**Plans**: 2 plans
+- [ ] 05-01: Regex-based Legal Structure Parser.
+- [ ] 05-02: Hierarchical Indexing Integration.
 
 ## Progress
 
@@ -65,8 +79,9 @@ We are evolving the supportLegal prototype from a single-script POC into a scala
 |-------|----------------|--------|-----------|
 | 1. Persistent Foundation | 2/2 | Complete | 2026-04-24 |
 | 2. Full Scale Indexing | 2/2 | Complete | 2026-04-24 |
-| 3. Smart Retrieval & RAG | 0/2 | Not started | - |
-| 4. Backend API Delivery | 0/1 | Not started | - |
+| 3. Smart Retrieval & RAG | 2/2 | Complete | 2026-04-26 |
+| 4. Backend API Delivery | 2/2 | Complete | 2026-04-26 |
+| 5. Hierarchical Structural Chunking | 0/2 | Active | — |
 
 ---
-*Last updated: 2026-04-24 after initialization*
+*Last updated: 2026-04-26*
