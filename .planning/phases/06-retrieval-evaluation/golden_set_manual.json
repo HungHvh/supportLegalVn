@@ -1,0 +1,16 @@
+[
+  {
+    "query": "Trường hợp khuyết người ứng cử đại biểu Hội đồng nhân dân vì lý do bất khả kháng được hiểu như thế nào?",
+    "reference_context": "Trường hợp khuyết người ứng cử đại biểu Hội đồng nhân dân vì lý do bất khả kháng... là trường hợp sau khi Ủy ban bầu cử công bố danh sách chính thức... mà người ứng cử... vì lý do bất khả kháng (chết, bị xóa tên...) không thể tiếp tục ứng cử.",
+    "reference_answer": "Là trường hợp sau khi công bố danh sách chính thức mà người ứng cử gặp lý do bất khả kháng như chết hoặc bị xóa tên khỏi danh sách, không thể tiếp tục ứng cử.",
+    "category": "Definition",
+    "difficulty": "Easy"
+  },
+  {
+    "query": "Nếu khuyết người ứng cử trong thời gian từ khi công bố danh sách đến trước khi niêm yết thì xử lý thế nào?",
+    "reference_context": "Trường hợp khuyết người ứng cử trong thời gian từ sau khi Ủy ban bầu cử công bố danh sách chính thức... đến trước ngày danh sách này được niêm yết, thì Ủy ban bầu cử sau khi thống nhất với Ban Thường trực Ủy ban Mặt trận Tổ quốc Việt Nam cùng cấp quyết định...",
+    "reference_answer": "Ủy ban bầu cử thống nhất với Ban Thường trực Ủy ban Mặt trận Tổ quốc Việt Nam cùng cấp để quyết định hình thức xử lý.",
+    "category": "Procedure",
+    "difficulty": "Medium"
+  }
+]

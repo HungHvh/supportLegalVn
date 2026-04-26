@@ -1,0 +1,20 @@
+[
+  {
+    "query": "Nghị quyết 115/NQ-HĐBCQG căn cứ vào văn bản pháp luật nào?",
+    "reference_context": "Căn cứ Hiến pháp nước Cộng hòa xã hội chủ nghĩa Việt Nam đã được sửa đổi, bổ sung một số điều theo Nghị quyết số 203/2025/QH15; Căn cứ Luật Bầu cử đại biểu Quốc hội và đại biểu Hội đồng nhân dân số 85/2015/QH13.",
+    "reference_answer": "Nghị quyết căn cứ vào Hiến pháp (được sửa đổi theo Nghị quyết 203/2025/QH15) và Luật Bầu cử số 85/2015/QH13.",
+    "metadata": {"so_ky_hieu": "115/NQ-HĐBCQG"}
+  },
+  {
+    "query": "Ai có thẩm quyền quyết định xử lý trường hợp khuyết người ứng cử đại biểu HĐND?",
+    "reference_context": "Ủy ban bầu cử sau khi thống nhất với Ban Thường trực Ủy ban Mặt trận Tổ quốc Việt Nam cùng cấp quyết định theo một trong các hình thức sau đây.",
+    "reference_answer": "Ủy ban bầu cử phối hợp thống nhất với Ban Thường trực Ủy ban Mặt trận Tổ quốc Việt Nam cùng cấp để quyết định.",
+    "metadata": {"so_ky_hieu": "115/NQ-HĐBCQG"}
+  },
+  {
+    "query": "Lý do bất khả kháng nào dẫn đến việc khuyết người ứng cử được nhắc đến trong nghị quyết?",
+    "reference_context": "người ứng cử đại biểu Hội đồng nhân dân vì lý do bất khả kháng (chết, bị xóa tên khỏi danh sách chính thức những người ứng cử...) không thể tiếp tục ứng cử.",
+    "reference_answer": "Các lý do như chết hoặc bị xóa tên khỏi danh sách chính thức.",
+    "metadata": {"so_ky_hieu": "115/NQ-HĐBCQG"}
+  }
+]
