@@ -9,9 +9,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Current Status
 
-- **Status**: Phase 6 Complete
+- **Status**: v1.2 Shipped
 - **Phase**: 7
-- **Next Step**: Discuss Phase 7 (Production Deployment)
+- **Next Step**: Planning Next Milestone (v2.0)
 
 ## Milestones
 
@@ -21,7 +21,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Recent Activity
 
-- **2026-04-26**: Phase 6 completed: Retrieval Evaluation with Ragas (+31% Hit Rate improvement).
+- **2026-04-26**: Milestone v1.2 Shipped: Full RAG pipeline with hierarchical optimization and verified evaluation.
 - **2026-04-26**: Phase 5 completed: Hierarchical Structural Chunking with Legal Parser & Hybrid Search.
 - **2026-04-26**: Phase 5 added: Hierarchical Structural Chunking refinement.
 - **2026-04-26**: Phase 4 completed: FastAPI backend with streaming and IRAC generation delivery.
