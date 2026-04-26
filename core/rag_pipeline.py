@@ -26,7 +26,10 @@ class LegalHybridRetriever(BaseRetriever):
         rrf_k: int = 60,
         top_k: int = 8,
         vector_weight: float = 0.5,
-        keyword_weight: float = 0.5
+        keyword_weight: float = 0.5,
+        use_vector: bool = True,
+        use_keyword: bool = True,
+        use_classifier: bool = True
     ):
         self.classifier = classifier
         self.vector_retriever = vector_retriever
@@ -35,26 +38,39 @@ class LegalHybridRetriever(BaseRetriever):
         self.top_k = top_k
         self.vector_weight = vector_weight
         self.keyword_weight = keyword_weight
+        self.use_vector = use_vector
+        self.use_keyword = use_keyword
+        self.use_classifier = use_classifier
         super().__init__()
 
     def _retrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
-        """Synchronous version (not recommended for FastAPI)."""
+        """Synchronous version."""
         return asyncio.run(self._aretrieve(query_bundle))
 
     async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
-        """Hybrid retrieval with classification and RRF fusion (Async)."""
-        # 1. Classify query
-        classification = await self.classifier.classify(query_bundle.query_str)
-        domains = classification.domains
+        """Hybrid retrieval with optional ablation toggles."""
+        # 1. Classify query (Optional)
+        domains = []
+        if self.use_classifier:
+            classification = await self.classifier.classify(query_bundle.query_str)
+            domains = classification.domains
         
-        # 2. Get results from both sources in parallel
-        vector_task = self.vector_retriever.aretrieve_with_filter(
-            query_bundle, 
-            domains=domains
-        )
-        fts_task = self.fts_retriever.aretrieve(query_bundle)
+        # 2. Get results from sources in parallel
+        vector_nodes = []
+        fts_nodes = []
         
-        vector_nodes, fts_nodes = await asyncio.gather(vector_task, fts_task)
+        tasks = []
+        if self.use_vector:
+            tasks.append(self.vector_retriever.aretrieve_with_filter(query_bundle, domains=domains))
+        else:
+            tasks.append(asyncio.sleep(0, result=[]))
+            
+        if self.use_keyword:
+            tasks.append(self.fts_retriever.aretrieve(query_bundle))
+        else:
+            tasks.append(asyncio.sleep(0, result=[]))
+        
+        vector_nodes, fts_nodes = await asyncio.gather(*tasks)
 
         # 3. Apply Reciprocal Rank Fusion (RRF)
         fused_scores: Dict[str, Dict[str, Any]] = {}
@@ -184,7 +200,7 @@ if __name__ == "__main__":
             fts_retriever=f_retriever
         )
         
-        llm = Gemini(model="models/gemini-1.5-flash")
+        llm = Gemini(model="models/gemini-2.0-flash")
         pipeline = LegalRAGPipeline(retriever=hybrid_retriever, llm=llm)
         
         query = "Thủ tục thành lập công ty TNHH"
