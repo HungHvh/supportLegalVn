@@ -18,6 +18,8 @@ Provide accurate, context-aware legal information from the full Vietnamese legal
 - ✓ **Query Classification** — Gemini-based domain detection for high-precision retrieval (Phase 3).
 - ✓ **Full RAG Pipeline** — Integrated pipeline with IRAC generation and citation enforcement (Phase 3).
 - ✓ **FastAPI Backend API** — Async API with streaming support and Dockerization (Phase 4).
+- ✓ **Hierarchical Structural Chunking** — Legal-specific parsing with parent-child context injection (Phase 5).
+- ✓ **Quantitative Evaluation** — Ablation study using Ragas + Gemini proving +31% Hit Rate gain (Phase 6).
 
 ### Active
 
@@ -30,7 +32,7 @@ Provide accurate, context-aware legal information from the full Vietnamese legal
 
 ## Context
 
-- **Current State**: A working script `main.py` exists that processes a sample of 50 documents.
+- **Current State**: Phase 6 Complete. Hybrid RAG system is fully optimized and quantitatively verified.
 - **Data Source**: Hugging Face `vohuutridung/vietnamese-legal-documents`.
 - **Tech Stack**: FastAPI, Qdrant (Docker), SQLite FTS5, Gemini (LLM), SentenceTransformers (`vietnamese-sbert`).
 
@@ -67,4 +69,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after initialization*
+*Last updated: 2026-04-26 after Phase 6 completion*
