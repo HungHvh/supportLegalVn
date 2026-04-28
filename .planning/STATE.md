@@ -5,13 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value**: Provide accurate, context-aware legal information from the full Vietnamese legal corpus with high precision via pre-query classification.
-**Current focus**: Phase 6: Retrieval Evaluation
+**Current focus**: Phase 6.1: Qwen-14B-Chat Classifier Provider
 
 ## Current Status
 
-- **Status**: v1.2 Shipped
-- **Phase**: 7
-- **Next Step**: Planning Next Milestone (v2.0)
+- **Status**: v2.0 Planning
+- **Phase**: 6.1
+- **Next Step**: Plan Phase 6.1 (Qwen classifier provider integration)
 
 ## Milestones
 
@@ -34,10 +34,11 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ### Roadmap Evolution
 - Phase 5 added: Hierarchical Structural Chunking (Legal-specific parsing).
 - Phase 6 added: Retrieval Evaluation (Benchmarking & Ragas).
+- Phase 6.1 inserted after Phase 6: Qwen-14B-Chat classifier provider with DashScope primary and Ollama backup (URGENT).
 
 ## Pending Todos
 
 (No pending todos)
 
 ---
-*Last updated: 2026-04-26*
+*Last updated: 2026-04-28*

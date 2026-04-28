@@ -1,5 +1,6 @@
 import aiosqlite
-from typing import List, Optional
+import re
+from typing import List
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import QueryBundle
 from llama_index.core.schema import NodeWithScore, TextNode
@@ -24,45 +25,48 @@ class SQLiteFTS5Retriever(BaseRetriever):
     async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         """Retrieve nodes from SQLite using FTS5 (Async)."""
         query_str = query_bundle.query_str
-        
+        safe_query = re.sub(r"[^\w\sÀ-ỹ]", " ", query_str).strip()
+        if not safe_query:
+            safe_query = query_str.strip()
+
         sql = """
             SELECT 
-                ld.doc_id, 
-                ld.content, 
-                ld.headers, 
-                ld.domain, 
+                ld.doc_id,
+                ld.full_path,
                 ld.so_ky_hieu,
-                fts.rank as score
+                ld.domain,
+                ld.content, 
+                -bm25(docs_fts) AS score
             FROM docs_fts fts
             JOIN legal_documents ld ON ld.id = fts.rowid
             WHERE docs_fts MATCH ?
-            ORDER BY rank
+            ORDER BY score DESC
             LIMIT ?
         """
-        
+
         nodes = []
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
-                async with db.execute(sql, (query_str, self.top_k)) as cursor:
+                async with db.execute(sql, (safe_query, self.top_k)) as cursor:
                     rows = await cursor.fetchall()
-                    
+
                     for row in rows:
                         metadata = {
                             "doc_id": row["doc_id"],
+                            "full_path": row["full_path"],
                             "domain": row["domain"],
-                            "so_ky_hieu": row["so_ky_hieu"],
-                            "headers": row["headers"]
+                            "so_ky_hieu": row["so_ky_hieu"]
                         }
                         node = TextNode(
                             text=row["content"],
                             metadata=metadata,
                             id_=row["doc_id"]
                         )
-                        nodes.append(NodeWithScore(node=node, score=-row["score"]))
+                        nodes.append(NodeWithScore(node=node, score=row["score"]))
         except Exception as e:
             print(f"[Error] SQLite retrieval failed: {e}")
-            
+
         return nodes
 
 if __name__ == "__main__":

@@ -22,8 +22,15 @@ async def lifespan(app: FastAPI):
         from retrievers.qdrant_retriever import QdrantRetriever
         from core.rag_pipeline import LegalRAGPipeline, LegalHybridRetriever
         
-        # We use gemini-2.0-flash as requested for better stability
-        classifier = LegalQueryClassifier(model_name="gemini-2.0-flash")
+        classifier_provider = os.getenv("CLASSIFIER_PROVIDER", "dashscope")
+        classifier_fallback_provider = os.getenv("CLASSIFIER_FALLBACK_PROVIDER", "ollama")
+        classifier_model = os.getenv("CLASSIFIER_MODEL", "qwen-14b-chat")
+
+        classifier = LegalQueryClassifier(
+            provider=classifier_provider,
+            fallback_provider=classifier_fallback_provider,
+            model_name=classifier_model,
+        )
         v_retriever = QdrantRetriever()
         f_retriever = SQLiteFTS5Retriever()
         

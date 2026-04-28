@@ -3,9 +3,6 @@ import asyncio
 from typing import List, Optional
 from llama_index.core import QueryBundle
 from llama_index.core.schema import NodeWithScore, TextNode
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from qdrant_client import AsyncQdrantClient
-from qdrant_client.http import models as qmodels
 
 class QdrantRetriever:
     """Wrapper for Qdrant vector search using native query API (Async)."""
@@ -18,10 +15,30 @@ class QdrantRetriever:
         top_k: int = 10,
         embed_model_name: str = "keepitreal/vietnamese-sbert"
     ):
-        self.embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
-        self.client = AsyncQdrantClient(host=host, port=port)
+        try:
+            from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+            self.embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+        except Exception as e:
+            print(f"[Warning] Qdrant embed model unavailable: {e}")
+            self.embed_model = None
+        self._client = None
+        self._client_host = host
+        self._client_port = port
         self.collection_name = collection_name
         self.top_k = top_k
+
+    def _get_client(self):
+        if self._client is not None:
+            return self._client
+
+        try:
+            from qdrant_client import AsyncQdrantClient
+            self._client = AsyncQdrantClient(host=self._client_host, port=self._client_port)
+        except Exception as e:
+            print(f"[Warning] Qdrant client unavailable: {e}")
+            self._client = None
+
+        return self._client
 
     async def aretrieve_with_filter(
         self, 
@@ -31,12 +48,20 @@ class QdrantRetriever:
         """
         Directly query Qdrant.
         """
+        if self.embed_model is None:
+            return []
+
+        client = self._get_client()
+        if client is None:
+            return []
+
         # 1. Generate embedding
         query_embedding = await self.embed_model.aget_query_embedding(query.query_str)
         
         # 2. Build filters
         query_filter = None
         if domains and "General" not in domains:
+            from qdrant_client.http import models as qmodels
             query_filter = qmodels.Filter(
                 must=[
                     qmodels.FieldCondition(
@@ -50,7 +75,7 @@ class QdrantRetriever:
         hits = []
         try:
             # Method A: query_points (Modern)
-            response = await self.client.query_points(
+            response = await client.query_points(
                 collection_name=self.collection_name,
                 query=query_embedding,
                 using="dense",
@@ -60,19 +85,8 @@ class QdrantRetriever:
             )
             hits = response.points
         except Exception as e:
-            print(f"query_points failed, trying search_points: {e}")
-            try:
-                # Method B: search_points (Legacy)
-                hits = await self.client.search(
-                    collection_name=self.collection_name,
-                    query_vector=("dense", query_embedding),
-                    query_filter=query_filter,
-                    limit=self.top_k,
-                    with_payload=True
-                )
-            except Exception as e2:
-                print(f"search failed too: {e2}")
-                hits = []
+            print(f"query_points failed: {e}")
+            hits = []
 
         # 4. Convert to NodeWithScore
         nodes = []
@@ -86,6 +100,10 @@ class QdrantRetriever:
             nodes.append(NodeWithScore(node=node, score=hit.score))
             
         return nodes
+
+    def retrieve_with_filter(self, query: QueryBundle, domains: Optional[List[str]] = None) -> List[NodeWithScore]:
+        """Synchronous convenience wrapper used by older tests."""
+        return asyncio.run(self.aretrieve_with_filter(query, domains=domains))
 
     async def aretrieve(self, query_str: str) -> List[NodeWithScore]:
         """Simple string-based retrieval."""
