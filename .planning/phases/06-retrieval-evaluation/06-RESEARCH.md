@@ -3,7 +3,7 @@
 ## Standard Stack
 - **Evaluation Framework**: [Ragas](https://docs.ragas.io/) (v0.1.x+)
 - **Dataset Generation**: `llama-index-core` (`RagDatasetGenerator`)
-- **LLM Judge**: `Gemini-1.5-Flash` (via `langchain-google-genai` wrapper)
+- **LLM Judge**: `gemini-2.0-flash` (via `langchain-google-genai` wrapper)
 - **Data Analysis**: `pandas` & `tabulate` (for Markdown reports)
 
 ## ⚠️ Environment Notes & Workarounds
@@ -52,7 +52,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas import evaluate
 
 # Initialize Gemini
-gemini_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+gemini_llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 ragas_judge = LangchainLLMWrapper(gemini_llm)
 
 # Run evaluation

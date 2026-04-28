@@ -45,7 +45,7 @@ def test_pipeline_initialization():
         fts_retriever=f_retriever
     )
     
-    llm = Gemini(model="models/gemini-1.5-flash")
+    llm = Gemini(model="models/gemini-2.0-flash")
     pipeline = LegalRAGPipeline(retriever=hybrid_retriever, llm=llm)
     
     assert pipeline is not None

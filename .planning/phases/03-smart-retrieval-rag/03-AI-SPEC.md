@@ -95,7 +95,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 ### Entry Point Pattern
 ```python
 # Configure Settings
-Settings.llm = Gemini(model="models/gemini-1.5-flash", api_key=os.environ["GEMINI_API_KEY"])
+Settings.llm = Gemini(model="models/gemini-2.0-flash", api_key=os.environ["GEMINI_API_KEY"])
 Settings.embed_model = HuggingFaceEmbedding(model_name="keepitreal/vietnamese-sbert")
 
 # Connect to existing Qdrant
@@ -123,8 +123,8 @@ query_engine = index.as_query_engine(similarity_top_k=5)
 ## 4. Implementation Guidance
 
 **Model Configuration:**
-- Classifier: `gemini-1.5-flash` (low temperature 0.1 for deterministic labels).
-- Generator: `gemini-1.5-flash` (temperature 0.3 for slightly more natural explanation while keeping citations strict).
+- Classifier: `gemini-2.0-flash` (low temperature 0.1 for deterministic labels).
+- Generator: `gemini-2.0-flash` (temperature 0.3 for slightly more natural explanation while keeping citations strict).
 
 **Core Pattern:**
 - **Hybrid Search + RRF:** We will leverage the existing FTS5 + Qdrant logic, using LlamaIndex's `CustomRetriever` to orchestrate the hybrid flow and RRF fusion.

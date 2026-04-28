@@ -10,12 +10,9 @@ router = APIRouter()
 
 @router.post("/ask", response_model=AskResponse)
 async def ask(request: AskRequest, fastapi_req: Request):
-    pipeline: LegalRAGPipeline = fastapi_req.app.state.pipeline
-    try:
-        result = await pipeline.acustom_query(request.query)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    pipeline = fastapi_req.app.state.pipeline
+    result = await pipeline.acustom_query(request.query)
+    return result
 
 @router.post("/stream")
 async def stream_ask(request: AskRequest, fastapi_req: Request):

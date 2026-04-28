@@ -16,6 +16,8 @@ services:
       - qdrant
     networks:
       - legal-network
+    volumes:
+      - .:/app
 
   qdrant:
     image: qdrant/qdrant:latest

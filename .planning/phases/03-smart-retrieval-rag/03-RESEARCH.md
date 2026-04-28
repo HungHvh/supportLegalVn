@@ -51,7 +51,7 @@ class LegalHybridRetriever(BaseRetriever):
 ## 2. Gemini Multi-label Classifier
 
 ### Prompt Strategy
-The classifier will be a standalone step using `gemini-1.5-flash` with a Pydantic output model.
+The classifier will be a standalone step using `gemini-2.0-flash` with a Pydantic output model.
 
 **Prompt Ingredients:**
 - **Context:** List of 6 domains with definitions.
