@@ -22,6 +22,7 @@
 ### 🚧 v2.0 Frontend & Chat (Planned)
 
 - [ ] Phase 6.1: Qwen-14B-Chat Classifier Provider (DashScope Primary, Ollama Backup) *(INSERTED)*
+- [x] Phase 6.2: DeepSeek API Classifier Integration (Replacing Qwen) — completed 2026-04-28
 - [ ] Phase 7: Production Deployment & UI Integration
 - [ ] Phase 8: Chat History & Feedback Loop
 
@@ -36,6 +37,7 @@
 | 5. Hierarchical | v1.2 | 2/2 | Complete | 2026-04-26 |
 | 6. Evaluation | v1.2 | 1/1 | Complete | 2026-04-26 |
 | 6.1 Qwen Classifier Provider | v2.0 | 0/0 | Planned | - |
+| 6.2 DeepSeek Classifier Provider | v2.0 | 2/2 | Complete | 2026-04-28 |
 
 ---
-*Last updated: 2026-04-28 after Phase 6.1 insertion*
+*Last updated: 2026-04-28 after Phase 6.2 insertion*
