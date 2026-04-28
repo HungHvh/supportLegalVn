@@ -10,6 +10,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Status
 - **Status**: v2.0 Execution (Phase 06.4 Completed)
 - **Phase**: 06.4 (Complete)
+- **Report**: [.planning/reports/MILESTONE_SUMMARY-v1.2.md](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/reports/MILESTONE_SUMMARY-v1.2.md)
 - **Next Step**: Audit Milestone 06 or Start Milestone 07.
 
 ## Milestones
