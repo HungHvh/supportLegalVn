@@ -7,6 +7,7 @@ from tools.gemini_client import GeminiClient
 from tools.qwen_dashscope_client import QwenDashScopeClient
 from tools.qwen_ollama_client import QwenOllamaClient
 from tools.deepseek_client import DeepSeekClient
+from tools.groq_client import GroqClient
 
 class QueryClassification(BaseModel):
     """Schema for legal query classification results."""
@@ -28,9 +29,9 @@ class LegalQueryClassifier:
 
     def __init__(
         self,
-        provider: str = "deepseek",
+        provider: str = "groq",
         fallback_provider: str = "gemini",
-        model_name: str = "deepseek-chat",
+        model_name: str = "llama-3.1-8b-instant",
         api_key: Optional[str] = None,
     ):
         self.provider = provider.lower()
@@ -90,6 +91,8 @@ Chú ý: DeepSeek, hãy phân tích kỹ ngữ cảnh pháp lý để đưa ra d
             client = QwenOllamaClient(model_name=self.model_name)
         elif provider_name == "deepseek":
             client = DeepSeekClient(model_name=self.model_name, api_key=self.api_key)
+        elif provider_name == "groq":
+            client = GroqClient(model_name=self.model_name, api_key=self.api_key)
         else:
             raise ValueError(f"Unsupported classifier provider: {provider_name}")
 

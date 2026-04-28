@@ -22,9 +22,9 @@ async def lifespan(app: FastAPI):
         from retrievers.qdrant_retriever import QdrantRetriever
         from core.rag_pipeline import LegalRAGPipeline, LegalHybridRetriever
         
-        classifier_provider = os.getenv("CLASSIFIER_PROVIDER", "dashscope")
-        classifier_fallback_provider = os.getenv("CLASSIFIER_FALLBACK_PROVIDER", "ollama")
-        classifier_model = os.getenv("CLASSIFIER_MODEL", "qwen-14b-chat")
+        classifier_provider = os.getenv("CLASSIFIER_PROVIDER", "groq")
+        classifier_fallback_provider = os.getenv("CLASSIFIER_FALLBACK_PROVIDER", "gemini")
+        classifier_model = os.getenv("CLASSIFIER_MODEL", "llama-3.1-8b-instant")
 
         classifier = LegalQueryClassifier(
             provider=classifier_provider,
