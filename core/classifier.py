@@ -1,8 +1,8 @@
 import os
+import json
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from llama_index.llms.gemini import Gemini
-from llama_index.core.llms import ChatMessage
+from tools.gemini_client import GeminiClient
 
 class QueryClassification(BaseModel):
     """Schema for legal query classification results."""
@@ -22,17 +22,12 @@ class LegalQueryClassifier:
         "Land & Real Estate": "Đất đai, Bất động sản, Sổ đỏ, Tranh chấp đất đai"
     }
 
-    def __init__(self, model_name: str = "models/gemini-1.5-flash", api_key: Optional[str] = None):
-        api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY must be set in environment or passed to constructor.")
-        
-        self.llm = Gemini(model=model_name, api_key=api_key)
+    def __init__(self, model_name: str = "gemini-2.0-flash", api_key: Optional[str] = None):
+        self.client = GeminiClient(model_name=model_name, api_key=api_key)
 
     async def classify(self, query: str) -> QueryClassification:
         """
-        Classifies the user query using Gemini.
-        Returns 'General' if confidence is low.
+        Classifies the user query using centralized GeminiClient.
         """
         system_prompt = f"""Bạn là một chuyên gia pháp luật Việt Nam. 
 Nhiệm vụ của bạn là phân loại câu hỏi của người dùng vào các lĩnh vực luật tương ứng.
@@ -44,36 +39,28 @@ Hãy trả về kết quả dưới định dạng JSON với các trường:
 - confidence: Độ tin cậy (0.0 đến 1.0).
 - is_explicit_filter: True nếu người dùng nhắc đến đích danh một văn bản luật (ví dụ: 'Theo Luật Đất đai 2024...').
 
-Lưu ý: Một câu hỏi có thể thuộc nhiều lĩnh vực.
+Hãy chỉ trả về kết quả dưới định dạng JSON nguyên bản, không kèm theo markdown block hay giải thích gì thêm.
 """
         
-        response = await self.llm.astructured_predict(
-            QueryClassification,
-            [
-                ChatMessage(role="system", content=system_prompt),
-                ChatMessage(role="user", content=f"Câu hỏi: {query}")
-            ]
-        )
+        full_prompt = f"{system_prompt}\n\nCâu hỏi: {query}"
         
-        # Post-processing for low confidence
-        if response.confidence < 0.5 and "General" not in response.domains:
-            response.domains = ["General"]
+        try:
+            response = await self.client.generate_content_async(full_prompt)
+            content = response.text.strip()
             
-        return response
+            # Clean markdown if present
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+                
+            data = json.loads(content)
+            result = QueryClassification(**data)
+        except Exception as e:
+            print(f"Classifier error (after retries): {e}. Falling back to General.")
+            result = QueryClassification(domains=["General"], confidence=0.0, is_explicit_filter=False)
+            
+        return result
 
     def _format_domains(self) -> str:
         return "\n".join([f"- {k}: {v}" for k, v in self.DOMAINS.items()])
-
-if __name__ == "__main__":
-    # Quick test
-    import asyncio
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    async def test():
-        classifier = LegalQueryClassifier()
-        res = await classifier.classify("Thủ tục ly hôn cần những giấy tờ gì?")
-        print(f"Query: Thủ tục ly hôn...")
-        print(f"Domains: {res.domains}, Confidence: {res.confidence}")
-        
-    asyncio.run(test())

@@ -1,9 +1,14 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from unittest.mock import AsyncMock, MagicMock
+import traceback
+
+import llama_index.core
+llama_index.core.global_handler = None
 
 load_dotenv()
 
@@ -11,31 +16,28 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     # Startup: Initialize singletons
     print("Initializing RAG Pipeline singletons...")
-    
     try:
-        # 1. Initialize Components
-        from core.rag_pipeline import LegalRAGPipeline
         from core.classifier import LegalQueryClassifier
-        from retrievers.qdrant_retriever import QdrantRetriever
         from retrievers.sqlite_retriever import SQLiteFTS5Retriever
-        from llama_index.llms.gemini import Gemini
+        from retrievers.qdrant_retriever import QdrantRetriever
+        from core.rag_pipeline import LegalRAGPipeline, LegalHybridRetriever
         
-        classifier = LegalQueryClassifier()
+        # We use gemini-2.0-flash as requested for better stability
+        classifier = LegalQueryClassifier(model_name="gemini-2.0-flash")
         v_retriever = QdrantRetriever()
         f_retriever = SQLiteFTS5Retriever()
         
-        from core.rag_pipeline import LegalHybridRetriever
         hybrid_retriever = LegalHybridRetriever(
             classifier=classifier,
             vector_retriever=v_retriever,
             fts_retriever=f_retriever
         )
         
-        llm = Gemini(model="models/gemini-1.5-flash")
-        app.state.pipeline = LegalRAGPipeline(retriever=hybrid_retriever, llm=llm)
+        app.state.pipeline = LegalRAGPipeline(retriever=hybrid_retriever, model_name="gemini-2.0-flash")
         print("RAG Pipeline ready.")
     except Exception as e:
         print(f"WARNING: RAG Pipeline failed to initialize: {e}")
+        traceback.print_exc()
         print("Backend will start in MOCK mode for API verification.")
         # Create a mock pipeline for verification
         mock = MagicMock()
@@ -43,16 +45,34 @@ async def lifespan(app: FastAPI):
         app.state.pipeline = mock
 
     yield
-    
-    # Shutdown: Clean up resources
-    print("Shutting down...")
 
 app = FastAPI(
-    title="supportLegal Backend",
-    description="Vietnamese Legal RAG API",
+    title="Legal Support VN API",
+    description="Vietnamese Legal RAG System API",
     version="1.0.0",
     lifespan=lifespan
 )
+
+from google.api_core import exceptions
+
+@app.exception_handler(exceptions.ResourceExhausted)
+async def rate_limit_handler(request: Request, exc: exceptions.ResourceExhausted):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": "Gemini API quota exceeded. Retries failed. Please try again later.",
+            "retry_after": "60" # Default suggestion
+        }
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"CRITICAL ERROR: {str(exc)}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": traceback.format_exc()}
+    )
 
 # Include Routers
 from api.v1.endpoints import router as api_v1
@@ -70,7 +90,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "healthy", "service": "legal-api"}
 
 if __name__ == "__main__":
     import uvicorn

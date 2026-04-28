@@ -4,13 +4,11 @@ from typing import List, Dict, Any, Optional, AsyncGenerator
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import QueryBundle, Settings, PromptTemplate
 from llama_index.core.schema import NodeWithScore
-from llama_index.core.query_engine import CustomQueryEngine
-from llama_index.llms.gemini import Gemini
-import llama_index.core
 
 from core.classifier import LegalQueryClassifier
 from retrievers.sqlite_retriever import SQLiteFTS5Retriever
 from retrievers.qdrant_retriever import QdrantRetriever
+from tools.gemini_client import GeminiClient
 
 class LegalHybridRetriever(BaseRetriever):
     """
@@ -52,8 +50,11 @@ class LegalHybridRetriever(BaseRetriever):
         # 1. Classify query (Optional)
         domains = []
         if self.use_classifier:
-            classification = await self.classifier.classify(query_bundle.query_str)
-            domains = classification.domains
+            try:
+                classification = await self.classifier.classify(query_bundle.query_str)
+                domains = classification.domains
+            except Exception as e:
+                print(f"Classification failed: {e}")
         
         # 2. Get results from sources in parallel
         vector_nodes = []
@@ -85,9 +86,11 @@ class LegalHybridRetriever(BaseRetriever):
                         "score": 0.0
                     }
                 fused_scores[node_id]["score"] += score
-
-        add_to_fusion(vector_nodes, self.vector_weight)
-        add_to_fusion(fts_nodes, self.keyword_weight)
+        
+        if vector_nodes:
+            add_to_fusion(vector_nodes, self.vector_weight)
+        if fts_nodes:
+            add_to_fusion(fts_nodes, self.keyword_weight)
 
         # 4. Sort and return top-k
         sorted_nodes = sorted(
@@ -101,16 +104,15 @@ class LegalHybridRetriever(BaseRetriever):
             for item in sorted_nodes[:self.top_k]
         ]
 
-class LegalRAGPipeline(CustomQueryEngine):
+class LegalRAGPipeline:
     """
-    Unified Legal RAG Pipeline for Vietnamese Law. (Async & Streaming)
+    Unified Legal RAG Pipeline using centralized GeminiClient.
     """
-    retriever: LegalHybridRetriever
-    llm: Gemini
-    qa_prompt: PromptTemplate
-
-    def __init__(self, retriever: LegalHybridRetriever, llm: Gemini):
-        qa_prompt_str = (
+    def __init__(self, retriever: LegalHybridRetriever, model_name: str = "gemini-2.0-flash"):
+        self.retriever = retriever
+        self.client = GeminiClient(model_name=model_name)
+        
+        self.qa_prompt_template = (
             "Bạn là một chuyên gia pháp luật Việt Nam cao cấp. "
             "Hãy trả lời câu hỏi của người dùng dựa trên các tài liệu pháp luật được cung cấp dưới đây.\n"
             "---------------------\n"
@@ -129,11 +131,9 @@ class LegalRAGPipeline(CustomQueryEngine):
             "Câu hỏi: {query_str}\n"
             "Trả lời:"
         )
-        qa_prompt = PromptTemplate(qa_prompt_str)
-        super().__init__(retriever=retriever, llm=llm, qa_prompt=qa_prompt)
 
     async def acustom_query(self, query_str: str) -> Dict[str, Any]:
-        """Execute the full RAG pipeline and return structured JSON."""
+        """Execute the full RAG pipeline."""
         nodes = await self.retriever.aretrieve(query_str)
         
         context_str = "\n\n".join([
@@ -141,12 +141,12 @@ class LegalRAGPipeline(CustomQueryEngine):
             for n in nodes
         ])
         
-        fmt_prompt = self.qa_prompt.format(
+        prompt = self.qa_prompt_template.format(
             context_str=context_str, 
             query_str=query_str
         )
         
-        response = await self.llm.acomplete(fmt_prompt)
+        response = await self.client.generate_content_async(prompt)
         
         # Prepare structured response
         citations = []
@@ -158,14 +158,14 @@ class LegalRAGPipeline(CustomQueryEngine):
             })
             
         return {
-            "answer": str(response),
+            "answer": response.text,
             "citations": citations,
-            "detected_domains": [], # To be filled if classifier returns them
-            "confidence_score": 0.0 # Placeholder
+            "detected_domains": [],
+            "confidence_score": 0.0
         }
 
     async def astream_query(self, query_str: str) -> AsyncGenerator[str, None]:
-        """Stream the RAG response token by token."""
+        """Stream the RAG response."""
         nodes = await self.retriever.aretrieve(query_str)
         
         context_str = "\n\n".join([
@@ -173,40 +173,11 @@ class LegalRAGPipeline(CustomQueryEngine):
             for n in nodes
         ])
         
-        fmt_prompt = self.qa_prompt.format(
+        prompt = self.qa_prompt_template.format(
             context_str=context_str, 
             query_str=query_str
         )
         
-        gen = await self.llm.astream_complete(fmt_prompt)
-        async for response in gen:
-            yield response.delta
-
-        # Final frame with metadata could be added here in a real SSE implementation
-        # For now, we just stream tokens.
-
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    async def test():
-        classifier = LegalQueryClassifier()
-        v_retriever = QdrantRetriever()
-        f_retriever = SQLiteFTS5Retriever()
-        
-        hybrid_retriever = LegalHybridRetriever(
-            classifier=classifier,
-            vector_retriever=v_retriever,
-            fts_retriever=f_retriever
-        )
-        
-        llm = Gemini(model="models/gemini-2.0-flash")
-        pipeline = LegalRAGPipeline(retriever=hybrid_retriever, llm=llm)
-        
-        query = "Thủ tục thành lập công ty TNHH"
-        print(f"Querying: {query}")
-        res = await pipeline.acustom_query(query)
-        print(f"Answer: {res['answer'][:100]}...")
-        print(f"Citations: {len(res['citations'])}")
-
-    asyncio.run(test())
+        async for chunk in self.client.astream_query(prompt):
+            if chunk.text:
+                yield chunk.text
