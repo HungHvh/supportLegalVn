@@ -5,13 +5,12 @@
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value**: Provide accurate, context-aware legal information from the full Vietnamese legal corpus with high precision via pre-query classification.
-**Current focus**: Phase 6.3: Groq (Llama-3) Classifier Provider
-
+**Current focus**: Milestone 06 Audit & Cleanup
+...
 ## Current Status
-
-- **Status**: v2.0 Execution
-- **Phase**: 6.3 (Completed)
-- **Next Step**: Deploy to Production (Phase 7).
+- **Status**: v2.0 Execution (Phase 06.4 Completed)
+- **Phase**: 06.4 (Complete)
+- **Next Step**: Audit Milestone 06 or Start Milestone 07.
 
 ## Milestones
 
@@ -21,6 +20,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Recent Activity
 
+- **2026-04-28**: Phase 06.4 added: Replace Gemini with Groq for RAG response generation.
 - **2026-04-28**: Phase 6.3 completed: Groq (Llama-3) Classifier Integration with extreme low latency.
 - **2026-04-28**: Phase 6.2 completed: DeepSeek API Classifier Integration with Gemini failover.
 - **2026-04-26**: Milestone v1.2 Shipped: Full RAG pipeline with hierarchical optimization and verified evaluation.
@@ -39,6 +39,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 6.1 inserted after Phase 6: Qwen-14B-Chat classifier provider with DashScope primary and Ollama backup (URGENT).
 - Phase 6.2 inserted after Phase 6.1: DeepSeek API Classifier Integration (Replacing Qwen) (URGENT).
 - Phase 6.3 inserted after Phase 6.2: Groq (Llama-3) Classifier Provider (URGENT).
+- Phase 06.4 inserted after Phase 6.3: Groq RAG Generator Integration (Replacing Gemini) (URGENT).
 
 ## Pending Todos
 

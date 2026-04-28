@@ -40,7 +40,14 @@ async def lifespan(app: FastAPI):
             fts_retriever=f_retriever
         )
         
-        app.state.pipeline = LegalRAGPipeline(retriever=hybrid_retriever, model_name="gemini-2.0-flash")
+        generation_provider = os.getenv("GENERATION_PROVIDER", "groq")
+        generation_model = os.getenv("GENERATION_MODEL", "llama-3.1-70b")
+        
+        app.state.pipeline = LegalRAGPipeline(
+            retriever=hybrid_retriever, 
+            provider=generation_provider,
+            model_name=generation_model
+        )
         print("RAG Pipeline ready.")
     except Exception as e:
         print(f"WARNING: RAG Pipeline failed to initialize: {e}")

@@ -9,6 +9,9 @@ from core.classifier import LegalQueryClassifier
 from retrievers.sqlite_retriever import SQLiteFTS5Retriever
 from retrievers.qdrant_retriever import QdrantRetriever
 from tools.gemini_client import GeminiClient
+from tools.groq_client import GroqClient
+from tools.deepseek_client import DeepSeekClient
+from tools.qwen_dashscope_client import QwenDashScopeClient
 
 class LegalHybridRetriever(BaseRetriever):
     """
@@ -106,11 +109,20 @@ class LegalHybridRetriever(BaseRetriever):
 
 class LegalRAGPipeline:
     """
-    Unified Legal RAG Pipeline using centralized GeminiClient.
+    Unified Legal RAG Pipeline supporting multiple LLM providers.
     """
-    def __init__(self, retriever: LegalHybridRetriever, model_name: str = "gemini-2.0-flash"):
+    def __init__(
+        self, 
+        retriever: LegalHybridRetriever, 
+        provider: str = "gemini",
+        model_name: Optional[str] = None,
+        llm: Optional[Any] = None
+    ):
         self.retriever = retriever
-        self.client = GeminiClient(model_name=model_name)
+        if llm:
+            self.client = llm
+        else:
+            self.client = self._get_client(provider, model_name)
         
         self.qa_prompt_template = (
             "Bạn là một chuyên gia pháp luật Việt Nam cao cấp. "
@@ -131,6 +143,19 @@ class LegalRAGPipeline:
             "Câu hỏi: {query_str}\n"
             "Trả lời:"
         )
+
+    def _get_client(self, provider: str, model_name: Optional[str]) -> Any:
+        provider = provider.lower()
+        if provider == "gemini":
+            return GeminiClient(model_name=model_name or "gemini-2.0-flash")
+        elif provider == "groq":
+            return GroqClient(model_name=model_name or "llama-3.1-70b")
+        elif provider == "deepseek":
+            return DeepSeekClient(model_name=model_name or "deepseek-chat")
+        elif provider == "dashscope":
+            return QwenDashScopeClient(model_name=model_name or "qwen-plus")
+        else:
+            raise ValueError(f"Unsupported generation provider: {provider}")
 
     async def acustom_query(self, query_str: str) -> Dict[str, Any]:
         """Execute the full RAG pipeline."""
