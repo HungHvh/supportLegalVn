@@ -4,6 +4,8 @@ from typing import List, Optional
 from llama_index.core import QueryBundle
 from llama_index.core.schema import NodeWithScore, TextNode
 
+from core.embeddings import SAFE_EMBEDDING_MODEL_NAME
+
 class QdrantRetriever:
     """Wrapper for Qdrant vector search using native query API (Async)."""
 
@@ -12,15 +14,17 @@ class QdrantRetriever:
         collection_name: str = "legal_chunks", 
         host: str = os.getenv("QDRANT_HOST", "localhost"), 
         port: int = int(os.getenv("QDRANT_PORT", 6333)),
-        top_k: int = 10,
-        embed_model_name: str = "keepitreal/vietnamese-sbert"
+        top_k: int = 50,
+        embed_model_name: str = None
     ):
+        requested_model = embed_model_name or os.getenv("EMBEDDING_MODEL_NAME", SAFE_EMBEDDING_MODEL_NAME)
         try:
             from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-            self.embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+            self.embed_model = HuggingFaceEmbedding(model_name=requested_model)
         except Exception as e:
             print(f"[Warning] Qdrant embed model unavailable: {e}")
             self.embed_model = None
+            
         self._client = None
         self._client_host = host
         self._client_port = port
@@ -46,7 +50,7 @@ class QdrantRetriever:
         domains: Optional[List[str]] = None
     ) -> List[NodeWithScore]:
         """
-        Directly query Qdrant.
+        Directly query Qdrant. (Phase 10: Returns chunk-level nodes)
         """
         if self.embed_model is None:
             return []
@@ -58,7 +62,7 @@ class QdrantRetriever:
         # 1. Generate embedding
         query_embedding = await self.embed_model.aget_query_embedding(query.query_str)
         
-        # 2. Build filters
+        # 2. Build filters (Note: domain might be handled differently in Phase 10 if needed)
         query_filter = None
         if domains and "General" not in domains:
             from qdrant_client.http import models as qmodels
@@ -71,10 +75,9 @@ class QdrantRetriever:
                 ]
             )
 
-        # 3. Try different search methods based on client version
+        # 3. Search
         hits = []
         try:
-            # Method A: query_points (Modern)
             response = await client.query_points(
                 collection_name=self.collection_name,
                 query=query_embedding,
@@ -85,25 +88,24 @@ class QdrantRetriever:
             )
             hits = response.points
         except Exception as e:
-            print(f"query_points failed: {e}")
+            print(f"[Error] Qdrant search failed: {e}")
             hits = []
 
         # 4. Convert to NodeWithScore
         nodes = []
         for hit in hits:
             payload = hit.payload or {}
+            # Phase 10 payload includes chunk_id, article_uuid, so_ky_hieu, level, article_title
             node = TextNode(
-                text=payload.get("content", ""),
+                text=payload.get("content", ""), # This might be missing in payload if we only store minimal, 
+                                                 # so we'll fetch from SQLite later if needed, 
+                                                 # but we'll try to keep content in payload for reranking if possible.
                 id_=str(hit.id),
                 metadata=payload
             )
             nodes.append(NodeWithScore(node=node, score=hit.score))
             
         return nodes
-
-    def retrieve_with_filter(self, query: QueryBundle, domains: Optional[List[str]] = None) -> List[NodeWithScore]:
-        """Synchronous convenience wrapper used by older tests."""
-        return asyncio.run(self.aretrieve_with_filter(query, domains=domains))
 
     async def aretrieve(self, query_str: str) -> List[NodeWithScore]:
         """Simple string-based retrieval."""

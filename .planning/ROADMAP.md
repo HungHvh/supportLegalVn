@@ -28,6 +28,7 @@
 - [x] Phase 7: Frontend UI Integration — completed 2026-04-28
 - [ ] Phase 8: Chat History & Feedback Loop
 - [ ] Phase 9: Production Deployment & Infrastructure (Vercel, EC2, Nginx)
+- [ ] Phase 10: Article-Level Chunking & Full Re-index (Fix content truncation & speed)
 
 ## Progress
 
@@ -46,6 +47,7 @@
 | 7. Frontend UI Integration | v2.0 | 1/1 | Complete | 2026-04-28 |
 | 8. Chat History | v2.0 | 0/0 | Planned | - |
 | 9. Production Deployment | v2.0 | 0/0 | Planned | - |
+| 10. Article-Level Chunking & Re-index | v2.0 | 1/2 | Planned | - |
 
 ---
-*Last updated: 2026-04-28 after Phase 6.3 insertion*
+*Last updated: 2026-04-29 — Phase 10 added: Article-Level Chunking & Full Re-index*

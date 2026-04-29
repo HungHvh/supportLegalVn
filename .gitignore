@@ -27,3 +27,4 @@ legal_poc.db
 data/
 qdrant_data/
 outputs/
+./tmp_legal_poc.db

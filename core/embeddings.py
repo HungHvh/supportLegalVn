@@ -1,6 +1,14 @@
+import logging
+import os
 from abc import ABC, abstractmethod
 from typing import List, Dict
+import torch
+
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
+
+SAFE_EMBEDDING_MODEL_NAME = "bkai-foundation-models/vietnamese-bi-encoder"
 
 class EmbeddingProvider(ABC):
     """
@@ -19,18 +27,42 @@ class VietnameseSBERTProvider(EmbeddingProvider):
     """
     Sử dụng model keepitreal/vietnamese-sbert chạy local.
     """
-    def __init__(self, model_name: str = "keepitreal/vietnamese-sbert"):
-        self.model = SentenceTransformer(model_name)
+    def __init__(self, model_name: str = None):
+        requested_model = model_name or os.getenv("EMBEDDING_MODEL_NAME", SAFE_EMBEDDING_MODEL_NAME)
+        self.model_name = requested_model
+        
+        # Auto-detect device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device} for embedding model")
+
+        try:
+            self.model = SentenceTransformer(requested_model, device=device)
+        except Exception as exc:
+            if requested_model == SAFE_EMBEDDING_MODEL_NAME:
+                raise
+
+            logger.warning(
+                "Failed to load embedding model '%s' (%s). Falling back to '%s'.",
+                requested_model,
+                exc,
+                SAFE_EMBEDDING_MODEL_NAME,
+            )
+            self.model_name = SAFE_EMBEDDING_MODEL_NAME
+            self.model = SentenceTransformer(SAFE_EMBEDDING_MODEL_NAME, device=device)
+
+    @property
+    def dimension(self) -> int:
+        return self.model.get_embedding_dimension()
 
     async def get_embedding(self, text: str) -> List[float]:
         embedding = self.model.encode(text)
         return embedding.tolist()
 
     async def batch_get_embeddings(self, texts: List[str]) -> List[List[float]]:
-        embeddings = self.model.encode(texts)
+        embeddings = self.model.encode(texts, batch_size=64, show_progress_bar=False)
         return embeddings.tolist()
 
-from fastembed import SparseTextEmbedding, TextEmbedding
+from fastembed import SparseTextEmbedding
 
 class SparseEmbeddingProvider:
     """Sử dụng SPLADE hoặc BM25 từ fastembed để tạo Sparse Vectors."""

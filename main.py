@@ -4,8 +4,9 @@ import pandas as pd
 from datasets import load_dataset
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import MarkdownHeaderTextSplitter
+
+from core.embeddings import VietnameseSBERTProvider
 
 # ==========================================
 # 1. KHỞI TẠO CƠ SỞ DỮ LIỆU & MODEL
@@ -42,17 +43,19 @@ db_conn.commit()
 # Khởi tạo Qdrant (Chạy trực tiếp trên RAM)
 q_client = QdrantClient(":memory:")
 
+# Khởi tạo Embedding Model an toàn với fallback safetensors-compatible
+dense_provider = VietnameseSBERTProvider()
+embedding_model = dense_provider.model
+embedding_dimension = dense_provider.dimension
+
 # Kiểm tra và tạo collection (Thay thế recreate_collection đã bị remove/deprecated)
 if q_client.collection_exists(collection_name="legal_vectors"):
     q_client.delete_collection(collection_name="legal_vectors")
 
 q_client.create_collection(
     collection_name="legal_vectors",
-    vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
+    vectors_config=models.VectorParams(size=embedding_dimension, distance=models.Distance.COSINE),
 )
-
-# Khởi tạo Embedding Model (Mô hình tiếng Việt)
-embedding_model = SentenceTransformer("keepitreal/vietnamese-sbert")
 
 # ==========================================
 # 2. TẢI VÀ XỬ LÝ DỮ LIỆU (DATA INGESTION)

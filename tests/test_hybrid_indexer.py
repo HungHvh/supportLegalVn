@@ -3,20 +3,19 @@ import asyncio
 from indexer import process_batch
 from db.qdrant import QdrantManager
 from core.embeddings import VietnameseSBERTProvider, HybridEmbeddingProvider
-from qdrant_client.http import models
 
 @pytest.mark.asyncio
 async def test_qdrant_hybrid_upsert():
     """Verify that points are upserted with both dense and sparse vectors."""
+    dense_provider = VietnameseSBERTProvider()
     q_mgr = QdrantManager()
     collection_name = "test_hybrid_collection"
     
     # Ensure fresh collection
     if q_mgr.client.collection_exists(collection_name):
         q_mgr.client.delete_collection(collection_name)
-    q_mgr.init_collection(collection_name)
+    q_mgr.init_collection(collection_name, vector_size=dense_provider.dimension)
     
-    dense_provider = VietnameseSBERTProvider()
     hybrid_provider = HybridEmbeddingProvider(dense_provider)
     
     # Sample chunk
@@ -43,7 +42,7 @@ async def test_qdrant_hybrid_upsert():
     indexer.COLLECTION_NAME = collection_name
     
     try:
-        await process_batch(batch, ["123"], hybrid_provider, q_mgr, db_conn)
+        await process_batch(batch, ["123"], hybrid_provider, q_mgr, db_conn)  # type: ignore[arg-type]
         
         # Verify in Qdrant
         point = q_mgr.client.retrieve(collection_name=collection_name, ids=[test_id], with_vectors=True)[0]

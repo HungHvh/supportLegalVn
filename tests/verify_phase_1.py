@@ -14,8 +14,8 @@ async def test_embedding_provider():
         text = "Cộng hòa Xã hội Chủ nghĩa Việt Nam"
         vector = await provider.get_embedding(text)
         print(f"[OK] Generated vector size: {len(vector)}")
-        if len(vector) == 768:
-            print("[PASS] Vector size is 768.")
+        if len(vector) == provider.dimension:
+            print(f"[PASS] Vector size matches provider dimension ({provider.dimension}).")
         else:
             print(f"[FAIL] Unexpected vector size: {len(vector)}")
     except Exception as e:

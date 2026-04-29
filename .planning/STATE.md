@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - **Status**: v2.0 Execution (Phase 7 UI Integration Complete)
 - **Phase**: 07 (Complete)
 - **Report**: [.planning/phases/07-production-deployment-ui-integration/07-SUMMARY.md](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/phases/07-production-deployment-ui-integration/07-SUMMARY.md)
-- **Next Step**: Start Phase 8 (Chat History) or New Priority Phase.
+- **Next Step**: Start Phase 10 (Article-Level Chunking & Re-index — Critical data quality fix).
 
 ## Milestones
 
@@ -42,6 +42,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 6.2 inserted after Phase 6.1: DeepSeek API Classifier Integration (Replacing Qwen) (URGENT).
 - Phase 6.3 inserted after Phase 6.2: Groq (Llama-3) Classifier Provider (URGENT).
 - Phase 06.4 inserted after Phase 6.3: Groq RAG Generator Integration (Replacing Gemini) (URGENT).
+- Phase 10 added at end of v2.0: Article-Level Chunking & Full Re-index — Fix indexer.py content truncation + 10× speed improvement for 518K documents.
 
 ## Pending Todos
 
