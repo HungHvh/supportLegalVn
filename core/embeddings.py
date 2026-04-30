@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -83,16 +84,21 @@ class HybridEmbeddingProvider:
     """Kết hợp cả Dense và Sparse Embeddings."""
     def __init__(self, dense_provider: VietnameseSBERTProvider):
         self.dense = dense_provider
-        self.sparse = SparseEmbeddingProvider()
+        # self.sparse = SparseEmbeddingProvider()
 
     async def get_hybrid_embeddings(self, texts: List[str]) -> List[Dict]:
         dense_vecs = await self.dense.batch_get_embeddings(texts)
-        sparse_vecs = await self.sparse.batch_get_sparse_embeddings(texts)
-        
-        results = []
-        for d, s in zip(dense_vecs, sparse_vecs):
-            results.append({
-                "dense": d,
-                "sparse": s
-            })
-        return results
+        # sparse_task = self.sparse.batch_get_sparse_embeddings(texts)
+
+        # dense_vecs, sparse_vecs = await asyncio.gather(
+        #     dense_task,
+        #     sparse_task
+        # )
+
+        print("texts:", len(texts))
+        print("dense_vecs:", len(dense_vecs))
+
+        return [
+            {"dense": d, "sparse": []}
+            for d in dense_vecs
+        ]

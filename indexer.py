@@ -1,11 +1,13 @@
 import os
+import time
 import uuid
 import logging
 import asyncio
 from time import monotonic
 from tqdm import tqdm
 from typing import Any, List, Dict, Tuple
-from datasets import load_dataset, DownloadConfig
+
+from datasets import load_dataset
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client.http import models
 from dotenv import load_dotenv
@@ -15,409 +17,283 @@ from db.qdrant import QdrantManager
 from core.embeddings import VietnameseSBERTProvider, HybridEmbeddingProvider
 from core.parser import VietnameseLegalParser, LegalNode, LegalLevel
 
-# Load environment
+# ===== ENV =====
 load_dotenv()
-
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Config Phase 10
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 512))
-MIN_CHUNK_CHARS = int(os.getenv("MIN_CHUNK_CHARS", 50))
+DOCS_PER_COMMIT = 50 # int(os.getenv("DOCS_PER_COMMIT", 200))
 MAX_EMBED_CHARS = int(os.getenv("MAX_EMBED_CHARS", 500))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 100))
-MAX_CHUNKS_PER_ARTICLE = int(os.getenv("MAX_CHUNKS_PER_ARTICLE", 20))
-DB_COMMIT_INTERVAL = int(os.getenv("DB_COMMIT_INTERVAL", 500))
-DOCS_PER_COMMIT = int(os.getenv("DOCS_PER_COMMIT", DB_COMMIT_INTERVAL))
-QDRANT_UPSERT_BATCH_SIZE = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", BATCH_SIZE))
-COLLECTION_NAME = "legal_chunks"
-QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
-QDRANT_WAIT_SECONDS = int(os.getenv("QDRANT_WAIT_SECONDS", 180))
-USE_SPARSE_EMBEDDING = os.getenv("USE_SPARSE_EMBEDDING", "true").lower() == "true"
+QDRANT_BATCH = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", 256))
+MAX_CHUNKS_PER_BATCH = 800
 
-# Initialize Splitter for fallback
-recursive_splitter = RecursiveCharacterTextSplitter(
+COLLECTION_NAME = "legal_chunks"
+
+# ===== SPLITTER =====
+splitter = RecursiveCharacterTextSplitter(
     chunk_size=MAX_EMBED_CHARS,
     chunk_overlap=CHUNK_OVERLAP,
     separators=["\n\n", "\n", ". ", " ", ""]
 )
 
-async def wait_for_qdrant(host: str = QDRANT_HOST, port: int = QDRANT_PORT, timeout: int = QDRANT_WAIT_SECONDS):
-    """Block until Qdrant is reachable."""
-    deadline = monotonic() + timeout
-    last_error = None
-
+# ===== WAIT QDRANT =====
+async def wait_qdrant():
+    deadline = monotonic() + 120
     while monotonic() < deadline:
-        probe = None
         try:
-            probe = QdrantManager(host=host, port=port)
-            probe.client.get_collections()
-            probe.client.close()
+            q = QdrantManager()
+            q.client.get_collections()
             return
-        except Exception as e:
-            last_error = e
-            logger.info(f"Waiting for Qdrant at {host}:{port}... ({e})")
-            if probe is not None:
-                try:
-                    probe.client.close()
-                except Exception:
-                    pass
-            await asyncio.sleep(3)
+        except Exception:
+            await asyncio.sleep(2)
+    raise RuntimeError("Qdrant not ready")
 
-    raise TimeoutError(f"Qdrant not ready at {host}:{port} after {timeout}s: {last_error}")
-
-def flatten_article_content(node: LegalNode) -> str:
-    """Iteratively concat toàn bộ text của Điều và các Khoản/Điểm con."""
+# ===== FLATTEN =====
+def flatten(node: LegalNode):
     parts = []
-    stack = [(node, False)]
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        if n.title:
+            parts.append(n.title)
+        if n.content:
+            t = n.content.strip()
+            if t:
+                parts.append(t)
+        stack.extend(reversed(n.children))
+    return "\n".join(parts)
+
+# ===== SPLIT =====
+def split_article(node: LegalNode, full_text: str):
+    chunks = []
+    for sub in splitter.split_text(full_text):
+        chunks.append({
+            "path": node.full_path,
+            "text": sub,
+            "level": "ARTICLE"
+        })
+    return chunks
+
+# ===== COLLECT =====
+def collect(root, doc_id, so_ky_hieu):
+    articles, chunks = [], []
+
+    stack = [root]
+    articles_nodes = []
 
     while stack:
-        current, include_title = stack.pop()
-        if include_title and current.title:
-            parts.append(current.title)
-        if current.content and current.content.strip():
-            parts.append(current.content.strip())
-        for child in reversed(current.children):
-            stack.append((child, True))
+        n = stack.pop()
+        if n.level == LegalLevel.ARTICLE:
+            articles_nodes.append(n)
+        stack.extend(n.children)
 
-    return "\n".join(p for p in parts if p)
+    for node in articles_nodes:
+        aid = str(uuid.uuid4())
+        full = flatten(node)
 
-def split_article(article_node: LegalNode, full_content: str | None = None) -> List[Dict]:
-    """
-    Hybrid split: structural Khoản boundaries first,
-    RecursiveCharacterTextSplitter as fallback for long clauses.
-    Short clauses (< MIN_CHUNK_CHARS) merge into parent buffer.
-    """
-    result_chunks: List[Dict] = []
-    parent_buffer: str = ""
-
-    for clause in article_node.children:
-        text = clause.content.strip() if clause.content else ""
-
-        # Short clause -> accumulate in buffer
-        if len(text) < MIN_CHUNK_CHARS:
-            parent_buffer += " " + text
-            continue
-
-        # Flush buffer into current clause
-        if parent_buffer:
-            text = parent_buffer.strip() + " " + text
-            parent_buffer = ""
-
-        # Long clause -> split further
-        if len(text) > MAX_EMBED_CHARS:
-            sub_texts = recursive_splitter.split_text(text)
-        else:
-            sub_texts = [text]
-
-        for sub in sub_texts:
-            result_chunks.append({
-                "path": clause.full_path,
-                "text": sub,
-                "level": clause.level.name if clause.level else "KHOẢN",
-            })
-
-    # ⚠️ POST-LOOP FLUSH: flush remaining buffer (Correction #7)
-    if parent_buffer:
-        result_chunks.append({
-            "path": article_node.full_path,
-            "text": parent_buffer.strip(),
-            "level": "KHOẢN",
-        })
-
-    # Fallback: no clause children -> split full_content directly
-    if not result_chunks:
-        text_to_split = full_content if full_content is not None else flatten_article_content(article_node)
-        for sub in recursive_splitter.split_text(text_to_split):
-            result_chunks.append({
-                "path": article_node.full_path,
-                "text": sub,
-                "level": "ARTICLE",
-            })
-
-    # Soft cap logging
-    if len(result_chunks) > MAX_CHUNKS_PER_ARTICLE:
-        logger.warning(f"Article {article_node.full_path} produced {len(result_chunks)} chunks (soft cap={MAX_CHUNKS_PER_ARTICLE})")
-
-    return result_chunks
-
-def collect_article_chunks(root: LegalNode, doc_id: str, so_ky_hieu: str) -> Tuple[List[Dict], List[Dict]]:
-    """Collect articles and chunks from the parsed tree."""
-    articles_batch = []
-    chunks_batch = []
-
-    # Find all ARTICLE nodes
-    def find_articles(node: LegalNode):
-        stack = [node]
-        results = []
-
-        while stack:
-            current = stack.pop()
-            if current.level == LegalLevel.ARTICLE:
-                results.append(current)
-                continue
-            stack.extend(reversed(current.children))
-
-        return results
-
-    article_nodes = find_articles(root)
-
-    for article_node in article_nodes:
-        article_uuid = str(uuid.uuid4())
-        full_content = flatten_article_content(article_node)
-        article_title = article_node.title or so_ky_hieu
-
-        articles_batch.append({
-            "article_uuid": article_uuid,
+        articles.append({
+            "article_uuid": aid,
             "doc_id": doc_id,
             "so_ky_hieu": so_ky_hieu,
-            "article_title": article_title,
-            "article_path": article_node.full_path,
-            "full_content": full_content,
+            "article_title": node.title or so_ky_hieu,
+            "article_path": node.full_path,
+            "full_content": full
         })
 
-        raw_chunks = split_article(article_node, full_content=full_content)
-        for c in raw_chunks:
-            chunk_id = str(uuid.uuid4())
-            # Enrichment: [Breadcrumb] Text
-            enriched = f"[{c['path']}] {c['text']}"
-            chunks_batch.append({
-                "chunk_id": chunk_id,
-                "article_uuid": article_uuid,
+        for c in split_article(node, full):
+            cid = str(uuid.uuid4())
+            chunks.append({
+                "chunk_id": cid,
+                "article_uuid": aid,
                 "doc_id": doc_id,
                 "so_ky_hieu": so_ky_hieu,
                 "level": c["level"],
                 "chunk_path": c["path"],
                 "content": c["text"],
-                "enriched_text": enriched,
-                "article_title": article_title,
+                "enriched_text": f"[{c['path']}] {c['text']}",
+                "article_title": node.title or so_ky_hieu
             })
 
-    # Fallback: document has no ARTICLE nodes
-    if not article_nodes:
-        article_uuid = str(uuid.uuid4())
-        raw_text = flatten_article_content(root)
-        articles_batch.append({
-            "article_uuid": article_uuid,
-            "doc_id": doc_id,
-            "so_ky_hieu": so_ky_hieu,
-            "article_title": so_ky_hieu,
-            "article_path": so_ky_hieu,
-            "full_content": raw_text,
-        })
-        for sub in recursive_splitter.split_text(raw_text):
-            chunk_id = str(uuid.uuid4())
-            chunks_batch.append({
-                "chunk_id": chunk_id,
-                "article_uuid": article_uuid,
-                "doc_id": doc_id,
-                "so_ky_hieu": so_ky_hieu,
-                "level": "ARTICLE",
-                "chunk_path": so_ky_hieu,
-                "content": sub,
-                "enriched_text": f"[{so_ky_hieu}] {sub}",
-                "article_title": so_ky_hieu,
-            })
+    return articles, chunks
 
-    return articles_batch, chunks_batch
+# ===== LOAD PROCESSED =====
+def load_ids(db):
+    cur = db.cursor()
+    cur.execute("SELECT doc_id FROM indexing_status")
+    return {r[0] for r in cur.fetchall()}
 
-def load_processed_ids(db_conn) -> set[str]:
-    """Load processed doc_ids once to avoid per-document SQLite lookups."""
-    cursor = db_conn.cursor()
-    cursor.execute("SELECT doc_id FROM indexing_status")
-    return {row[0] for row in cursor.fetchall()}
 
-async def process_batch(articles: List[Dict], chunks: List[Dict], doc_ids: List[str], embed_provider: Any, q_mgr: QdrantManager, db_conn, use_sparse: bool = True):
-    """Process and save a batch to Qdrant and SQLite."""
+# IMPROVE MULTI-THREADING/ASYNC EMBEDDING
+EMBED_BATCH = 32          # 16–64 tùy RAM/GPU
+EMBED_CONCURRENCY = 4     # 2–8 tùy CPU/GPU
+
+sem = asyncio.Semaphore(EMBED_CONCURRENCY)
+
+
+async def embed_sub(texts, embed):
+    async with sem:
+        return await embed.dense.batch_get_embeddings(texts)
+
+async def embed_all(texts, embed):
+    tasks = [
+        asyncio.create_task(embed_sub(texts[i:i + EMBED_BATCH], embed))
+        for i in range(0, len(texts), EMBED_BATCH)
+    ]
+    batches = await asyncio.gather(*tasks)
+    return [vec for batch in batches for vec in batch]
+
+# ===== PROCESS =====
+async def process_batch(articles, chunks, doc_ids, embed, q_mgr, db):
     if not chunks:
         return
 
-    try:
-        # Embed only chunks
-        texts_for_embedding = [
-            c.get("enriched_text")
-            or f"[{c.get('chunk_path') or c.get('path') or c.get('full_path') or ''}] {c.get('content', '')}".strip()
-            for c in chunks
-        ]
-        # remote empty texts to avoid embedding errors
-        texts_for_embedding = [t for t in texts_for_embedding if t.strip()]
-        
-        if use_sparse:
-            hybrid_embeddings = await embed_provider.get_hybrid_embeddings(texts_for_embedding)
-        else:
-            logger.warning("⚠️ Using DENSE ONLY embeddings")
-            if hasattr(embed_provider, "dense") and hasattr(embed_provider.dense, "batch_get_embeddings"):
-                dense_vectors = await embed_provider.dense.batch_get_embeddings(texts_for_embedding)
-            elif hasattr(embed_provider, 'get_dense_embeddings'):
-                dense_vectors = await embed_provider.get_dense_embeddings(texts_for_embedding)
-            elif hasattr(embed_provider, 'batch_get_embeddings'):
-                dense_vectors = await embed_provider.batch_get_embeddings(texts_for_embedding)
-            else:
-                dense_vectors = await embed_provider.get_hybrid_embeddings(texts_for_embedding)
-            hybrid_embeddings = [{"dense": v, "sparse": []} for v in (dense_vectors if isinstance(dense_vectors, list) else [dense_vectors])]
+    # 🔥 FIX: giữ mapping 1-1
+    pairs = [(c, c["enriched_text"]) for c in chunks if c["enriched_text"].strip()]
 
-        if len(chunks) != len(hybrid_embeddings):
-            raise ValueError(
-                f"Embedding count mismatch: {len(chunks)} chunks vs {len(hybrid_embeddings)} vectors"
-            )
-
-        cursor = db_conn.cursor()
-        
-        # Insert articles first
-        article_records = [
-            (a["article_uuid"], a["doc_id"], a["so_ky_hieu"], a["article_title"], a["article_path"], a["full_content"])
-            for a in articles
-        ]
-        cursor.executemany(
-            "INSERT OR IGNORE INTO legal_articles (article_uuid, doc_id, so_ky_hieu, article_title, article_path, full_content) VALUES (?,?,?,?,?,?)",
-            article_records
-        )
-
-        chunk_batch_size = max(1, min(QDRANT_UPSERT_BATCH_SIZE, len(chunks)))
-        for start in range(0, len(chunks), chunk_batch_size):
-            batch_chunks = chunks[start:start + chunk_batch_size]
-            batch_embeddings = hybrid_embeddings[start:start + chunk_batch_size]
-
-            if len(batch_chunks) != len(batch_embeddings):
-                raise ValueError(
-                    f"Embedding count mismatch in sub-batch: {len(batch_chunks)} chunks vs {len(batch_embeddings)} vectors"
-                )
-
-            batch_chunk_records = [
-                (c["chunk_id"], c["article_uuid"], c["doc_id"], c["so_ky_hieu"], c["level"], c["chunk_path"], c["content"])
-                for c in batch_chunks
-            ]
-            cursor.executemany(
-                "INSERT OR IGNORE INTO legal_chunks (chunk_id, article_uuid, doc_id, so_ky_hieu, level, chunk_path, content) VALUES (?,?,?,?,?,?,?)",
-                batch_chunk_records
-            )
-
-            points = [
-                models.PointStruct(
-                    id=c["chunk_id"],
-                    vector={
-                        "dense": vec["dense"],
-                        "sparse": vec.get("sparse", [])
-                    },
-                    payload={
-                        "chunk_id": c["chunk_id"],
-                        "article_uuid": c["article_uuid"],
-                        "doc_id": c["doc_id"],
-                        "so_ky_hieu": c["so_ky_hieu"],
-                        "level": c["level"],
-                        "article_title": c["article_title"],
-                    }
-                )
-                for c, vec in zip(batch_chunks, batch_embeddings)
-            ]
-
-            q_mgr.client.upsert(collection_name=COLLECTION_NAME, points=points, wait=True)
-
-        # Mark doc_ids as processed
-        for d_id in doc_ids:
-            cursor.execute("INSERT OR IGNORE INTO indexing_status (doc_id) VALUES (?)", (d_id,))
-            
-        db_conn.commit()
-        logger.info(f"✅ Processed batch: {len(articles)} articles, {len(chunks)} chunks.")
-        
-    except Exception as e:
-        db_conn.rollback()
-        logger.error(f"❌ Error processing batch: {e}", exc_info=True)
-        raise
-
-async def run_indexer(limit: int = None):
-    """Main ingestion loop."""
-    await wait_for_qdrant()
-    init_db()
-    db_conn = get_db_connection()
-    dense_provider = VietnameseSBERTProvider()
-    q_mgr = QdrantManager()
-    q_mgr.init_collection(COLLECTION_NAME, vector_size=dense_provider.dimension)
-    embed_provider = HybridEmbeddingProvider(dense_provider)
-    parser = VietnameseLegalParser()
-
-    dataset_name = "vohuutridung/vietnamese-legal-documents"
-    
-    logger.info("Loading datasets...")
-    try:
-        try:
-            meta_ds = load_dataset(dataset_name, "metadata", split="data", download_config=DownloadConfig(local_files_only=True))
-        except Exception:
-            meta_ds = load_dataset(dataset_name, "metadata", split="data")
-        meta_lookup = {row['id']: row for row in meta_ds}
-        
-        try:
-            content_ds = load_dataset(dataset_name, "content", split="data", download_config=DownloadConfig(local_files_only=True))
-        except Exception:
-            content_ds = load_dataset(dataset_name, "content", split="data")
-    except Exception as e:
-        logger.error(f"Failed to load dataset: {e}")
+    if not pairs:
         return
 
-    pending_docs = []
-    processed_ids = load_processed_ids(db_conn)
-    processed_count = 0
-    
-    logger.info(f"Starting ingestion: BATCH_SIZE={BATCH_SIZE}, DOCS_PER_COMMIT={DOCS_PER_COMMIT}, MIN_CHUNK_CHARS={MIN_CHUNK_CHARS}")
+    valid_chunks, texts = zip(*pairs)
 
-    async def flush_pending_docs():
-        if not pending_docs:
-            return
+    try:
+        # VERY SLOW
+        vecs = await embed_all(list(texts), embed)
+    except Exception as e:
+        logger.error(f"Embedding error: {e}", exc_info=True)
+        raise
 
-        batch_articles = []
-        batch_chunks = []
-        batch_doc_ids = []
+    if len(vecs) != len(valid_chunks):
+        raise RuntimeError("Embedding mismatch")
 
-        for doc in pending_docs:
-            batch_articles.extend(doc["articles"])
-            batch_chunks.extend(doc["chunks"])
-            batch_doc_ids.append(doc["doc_id"])
+    cur = db.cursor()
 
-        await process_batch(batch_articles, batch_chunks, batch_doc_ids, embed_provider, q_mgr, db_conn, use_sparse=USE_SPARSE_EMBEDDING)
-        processed_ids.update(batch_doc_ids)
-        pending_docs.clear()
-    
-    for row in tqdm(content_ds, desc="Indexing Legal Articles"):
-        if limit and processed_count >= limit:
-            break
+    # insert articles
+    cur.executemany(
+        """INSERT OR IGNORE INTO legal_articles
+        (article_uuid, doc_id, so_ky_hieu, article_title, article_path, full_content)
+        VALUES (?,?,?,?,?,?)""",
+        [(a["article_uuid"], a["doc_id"], a["so_ky_hieu"], a["article_title"], a["article_path"], a["full_content"]) for a in articles]
+    )
 
-        doc_id_int = row['id']
-        doc_id_str = str(doc_id_int)
-        
-        if doc_id_str in processed_ids:
+    # batch insert
+    for i in range(0, len(valid_chunks), QDRANT_BATCH):
+
+        sub_chunks = valid_chunks[i:i+QDRANT_BATCH]
+        sub_vecs = vecs[i:i+QDRANT_BATCH]
+
+        cur.executemany(
+            """INSERT OR IGNORE INTO legal_chunks
+            (chunk_id, article_uuid, doc_id, so_ky_hieu, level, chunk_path, content)
+            VALUES (?,?,?,?,?,?,?)""",
+            [(c["chunk_id"], c["article_uuid"], c["doc_id"], c["so_ky_hieu"], c["level"], c["chunk_path"], c["content"]) for c in sub_chunks]
+        )
+
+        points = [
+            models.PointStruct(
+                id=c["chunk_id"],
+                # vector={"dense": v["dense"], "sparse": v.get("sparse", [])},
+                vector={"dense": v},
+                payload={
+                    "chunk_id": c["chunk_id"],
+                    "article_uuid": c["article_uuid"],
+                    "doc_id": c["doc_id"],
+                    "so_ky_hieu": c["so_ky_hieu"],
+                    "level": c["level"],
+                    "article_title": c["article_title"]
+                }
+            )
+            for c, v in zip(sub_chunks, sub_vecs)
+        ]
+
+        q_mgr.client.upsert(
+            collection_name=COLLECTION_NAME,
+            points=points,
+            wait=False  # 🚀 FIX tốc độ
+        )
+
+    cur.executemany(
+        "INSERT OR IGNORE INTO indexing_status (doc_id) VALUES (?)",
+        [(d,) for d in doc_ids]
+    )
+
+    db.commit()
+    print(f"✔ batch ok: {len(doc_ids)} docs, {len(valid_chunks)} chunks")
+    logger.info(f"✔ batch ok: {len(doc_ids)} docs, {len(valid_chunks)} chunks")
+
+# ===== MAIN =====
+async def run():
+
+    await wait_qdrant()
+    init_db()
+
+    db = get_db_connection()
+    processed = load_ids(db)
+    print("DB path:", db)
+
+    embed = HybridEmbeddingProvider(VietnameseSBERTProvider())
+    q_mgr = QdrantManager()
+    q_mgr.init_collection(COLLECTION_NAME)
+
+    parser = VietnameseLegalParser()
+
+    meta = load_dataset("vohuutridung/vietnamese-legal-documents", "metadata", split="data")
+    meta_map = {m["id"]: m for m in meta}
+
+    content = load_dataset("vohuutridung/vietnamese-legal-documents", "content", split="data")
+
+    pending = []
+
+    for row in tqdm(content):
+
+        doc_id = str(row["id"])
+        if doc_id in processed:
             continue
 
-        raw_text = row['content']
-        meta = meta_lookup.get(doc_id_int, {})
-        so_ky_hieu = str(meta.get("document_number", "N/A"))
+        so = str(meta_map.get(row["id"], {}).get("document_number", "N/A"))
 
-        # Parse and collect
-        root_node = parser.parse_document(raw_text, law_name=so_ky_hieu)
-        articles, chunks = collect_article_chunks(root_node, doc_id_str, so_ky_hieu)
+        root = parser.parse_document(row["content"], law_name=so)
+        articles, chunks = collect(root, doc_id, so)
 
-        processed_count += 1
-
-        pending_docs.append({
-            "doc_id": doc_id_str,
+        pending.append({
+            "doc_id": doc_id,
             "articles": articles,
-            "chunks": chunks,
+            "chunks": chunks
         })
+        total_chunks = sum(len(d["chunks"]) for d in pending)
 
-        if len(pending_docs) >= DOCS_PER_COMMIT or sum(len(d["chunks"]) for d in pending_docs) > MAX_CHUNKS_PER_ARTICLE:
-            await flush_pending_docs()
+        if total_chunks >= MAX_CHUNKS_PER_BATCH:
+            print("flush batch: pending docs =", len(pending), "total chunks =", total_chunks)
+            start_time = time.time()
+            await flush(pending, embed, q_mgr, db, processed)
+            end_time = time.time()
+            print(f"batch flush time: {end_time - start_time:.2f} seconds")
 
-    # Final batch
-    await flush_pending_docs()
+    await flush(pending, embed, q_mgr, db, processed)
 
-    db_conn.close()
-    logger.info("🎉 Ingestion completed successfully!")
+# ===== FLUSH =====
+async def flush(pending, embed, q_mgr, db, processed):
 
-if __name__ == "__main__":
+    if not pending:
+        return
+
+    articles, chunks, ids = [], [], []
+
+    for d in pending:
+        articles.extend(d["articles"])
+        chunks.extend(d["chunks"])
+        ids.append(d["doc_id"])
+
     try:
-        asyncio.run(run_indexer())
-    except KeyboardInterrupt:
-        logger.info("Ingestion interrupted by user.")
+        await process_batch(articles, chunks, ids, embed, q_mgr, db)
+        processed.update(ids)
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.error(f"FATAL batch fail: {e}", exc_info=True)
+        raise
+
+    pending.clear()
+
+# ===== ENTRY =====
+if __name__ == "__main__":
+    asyncio.run(run())
