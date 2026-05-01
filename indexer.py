@@ -5,7 +5,6 @@ import logging
 import asyncio
 from time import monotonic
 from tqdm import tqdm
-from typing import Any, List, Dict, Tuple
 
 from datasets import load_dataset
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -22,14 +21,16 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 512))
-DOCS_PER_COMMIT = 50 # int(os.getenv("DOCS_PER_COMMIT", 200))
 MAX_EMBED_CHARS = int(os.getenv("MAX_EMBED_CHARS", 1000))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 30))
 QDRANT_BATCH = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", 256))
-MAX_CHUNKS_PER_BATCH = 800
 
-COLLECTION_NAME = "legal_chunks"
+# 🔥 NEW
+MAX_ARTICLES_PER_FLUSH = int(os.getenv("MAX_ARTICLES_PER_FLUSH", 1000))
+INDEX_CHUNKS = os.getenv("INDEX_CHUNKS", "0") == "1"
+
+COLLECTION_ARTICLE = "legal_articles"
+COLLECTION_CHUNK = "legal_chunks"
 
 # ===== SPLITTER =====
 splitter = RecursiveCharacterTextSplitter(
@@ -67,29 +68,29 @@ def flatten(node: LegalNode):
 
 # ===== SPLIT =====
 def split_article(node: LegalNode, full_text: str):
-    chunks = []
-    for sub in splitter.split_text(full_text):
-        chunks.append({
+    return [
+        {
             "path": node.full_path,
             "text": sub,
             "level": "ARTICLE"
-        })
-    return chunks
+        }
+        for sub in splitter.split_text(full_text)
+    ]
 
 # ===== COLLECT =====
 def collect(root, doc_id, so_ky_hieu):
     articles, chunks = [], []
 
     stack = [root]
-    articles_nodes = []
+    article_nodes = []
 
     while stack:
         n = stack.pop()
         if n.level == LegalLevel.ARTICLE:
-            articles_nodes.append(n)
+            article_nodes.append(n)
         stack.extend(n.children)
 
-    for node in articles_nodes:
+    for node in article_nodes:
         aid = str(uuid.uuid4())
         full = flatten(node)
 
@@ -102,74 +103,53 @@ def collect(root, doc_id, so_ky_hieu):
             "full_content": full
         })
 
-        for c in split_article(node, full):
-            cid = str(uuid.uuid4())
-            chunks.append({
-                "chunk_id": cid,
-                "article_uuid": aid,
-                "doc_id": doc_id,
-                "so_ky_hieu": so_ky_hieu,
-                "level": c["level"],
-                "chunk_path": c["path"],
-                "content": c["text"],
-                "enriched_text": f"[{c['path']}] {c['text']}",
-                "article_title": node.title or so_ky_hieu
-            })
+        if INDEX_CHUNKS:
+            for c in split_article(node, full):
+                chunks.append({
+                    "chunk_id": str(uuid.uuid4()),
+                    "article_uuid": aid,
+                    "doc_id": doc_id,
+                    "so_ky_hieu": so_ky_hieu,
+                    "level": c["level"],
+                    "chunk_path": c["path"],
+                    "content": c["text"],
+                    "enriched_text": f"[{c['path']}] {c['text']}",
+                    "article_title": node.title or so_ky_hieu
+                })
 
     return articles, chunks
 
-# ===== LOAD PROCESSED =====
-def load_ids(db):
-    cur = db.cursor()
-    cur.execute("SELECT doc_id FROM indexing_status")
-    return {r[0] for r in cur.fetchall()}
-
-
-# IMPROVE MULTI-THREADING/ASYNC EMBEDDING
-EMBED_BATCH = 64          # 16–64 tùy RAM/GPU
-EMBED_CONCURRENCY = 4     # 2–8 tùy CPU/GPU
-
-sem = asyncio.Semaphore(EMBED_CONCURRENCY)
-
-
-async def embed_sub(texts, embed):
-    async with sem:
-        return await embed.dense.batch_get_embeddings(texts)
+# ===== EMBEDDING =====
+EMBED_BATCH = 64
 
 async def embed_all(texts, embed):
-    tasks = [
-        asyncio.create_task(embed_sub(texts[i:i + EMBED_BATCH], embed))
-        for i in range(0, len(texts), EMBED_BATCH)
-    ]
-    batches = await asyncio.gather(*tasks)
-    return [vec for batch in batches for vec in batch]
+    all_vecs = []
+    for i in range(0, len(texts), EMBED_BATCH):
+        batch = texts[i:i + EMBED_BATCH]
+        if not batch:
+            continue
+        # đoạn này gọi GPU nên async không có tác dụng gì
+        vecs = await embed.dense.batch_get_embeddings(batch)
+        all_vecs.extend(vecs)
+    return all_vecs
 
 # ===== PROCESS =====
 async def process_batch(articles, chunks, doc_ids, embed, q_mgr, db):
-    if not chunks:
+
+    if not articles:
         return
 
-    # 🔥 FIX: giữ mapping 1-1
-    pairs = [(c, c["enriched_text"]) for c in chunks if c["enriched_text"].strip()]
+    # ===== EMBED ARTICLES =====
+    article_texts = [
+        f"{a['article_title']}\n{a['full_content']}"
+        for a in articles
+    ]
 
-    if not pairs:
-        return
-
-    valid_chunks, texts = zip(*pairs)
-
-    try:
-        # VERY SLOW
-        vecs = await embed_all(list(texts), embed)
-    except Exception as e:
-        logger.error(f"Embedding error: {e}", exc_info=True)
-        raise
-
-    if len(vecs) != len(valid_chunks):
-        raise RuntimeError("Embedding mismatch")
+    vecs = await embed_all(article_texts, embed)
 
     cur = db.cursor()
 
-    # insert articles
+    # ===== SQLITE =====
     cur.executemany(
         """INSERT OR IGNORE INTO legal_articles
         (article_uuid, doc_id, so_ky_hieu, article_title, article_path, full_content)
@@ -177,50 +157,40 @@ async def process_batch(articles, chunks, doc_ids, embed, q_mgr, db):
         [(a["article_uuid"], a["doc_id"], a["so_ky_hieu"], a["article_title"], a["article_path"], a["full_content"]) for a in articles]
     )
 
-    # batch insert
-    for i in range(0, len(valid_chunks), QDRANT_BATCH):
+    # ===== QDRANT ARTICLE =====
+    points = [
+        models.PointStruct(
+            id=a["article_uuid"],
+            vector={"dense": v},
+            payload={
+                "article_uuid": a["article_uuid"],
+                "doc_id": a["doc_id"],
+                "so_ky_hieu": a["so_ky_hieu"],
+                "article_title": a["article_title"],
+                "full_content": a["full_content"]
+            }
+        )
+        for a, v in zip(articles, vecs)
+    ]
 
-        sub_chunks = valid_chunks[i:i+QDRANT_BATCH]
-        sub_vecs = vecs[i:i+QDRANT_BATCH]
+    q_mgr.client.upsert(
+        collection_name=COLLECTION_ARTICLE,
+        points=points,
+        wait=False
+    )
 
+    # ===== OPTIONAL CHUNK =====
+    if INDEX_CHUNKS and chunks:
         cur.executemany(
             """INSERT OR IGNORE INTO legal_chunks
             (chunk_id, article_uuid, doc_id, so_ky_hieu, level, chunk_path, content)
             VALUES (?,?,?,?,?,?,?)""",
-            [(c["chunk_id"], c["article_uuid"], c["doc_id"], c["so_ky_hieu"], c["level"], c["chunk_path"], c["content"]) for c in sub_chunks]
+            [(c["chunk_id"], c["article_uuid"], c["doc_id"], c["so_ky_hieu"], c["level"], c["chunk_path"], c["content"]) for c in chunks]
         )
-
-        points = [
-            models.PointStruct(
-                id=c["chunk_id"],
-                # vector={"dense": v["dense"], "sparse": v.get("sparse", [])},
-                vector={"dense": v},
-                payload={
-                    "chunk_id": c["chunk_id"],
-                    "article_uuid": c["article_uuid"],
-                    "doc_id": c["doc_id"],
-                    "so_ky_hieu": c["so_ky_hieu"],
-                    "level": c["level"],
-                    "article_title": c["article_title"]
-                }
-            )
-            for c, v in zip(sub_chunks, sub_vecs)
-        ]
-
-        q_mgr.client.upsert(
-            collection_name=COLLECTION_NAME,
-            points=points,
-            wait=False  # 🚀 FIX tốc độ
-        )
-
-    cur.executemany(
-        "INSERT OR IGNORE INTO indexing_status (doc_id) VALUES (?)",
-        [(d,) for d in doc_ids]
-    )
 
     db.commit()
-    print(f"✔ batch ok: {len(doc_ids)} docs, {len(valid_chunks)} chunks")
-    logger.info(f"✔ batch ok: {len(doc_ids)} docs, {len(valid_chunks)} chunks")
+
+    print(f"✔ batch ok: {len(doc_ids)} docs, {len(articles)} articles")
 
 # ===== MAIN =====
 async def run():
@@ -229,12 +199,13 @@ async def run():
     init_db()
 
     db = get_db_connection()
-    processed = load_ids(db)
-    print("DB path:", db)
 
     embed = HybridEmbeddingProvider(VietnameseSBERTProvider())
     q_mgr = QdrantManager()
-    q_mgr.init_collection(COLLECTION_NAME)
+
+    q_mgr.init_collection(COLLECTION_ARTICLE)
+    if INDEX_CHUNKS:
+        q_mgr.init_collection(COLLECTION_CHUNK)
 
     parser = VietnameseLegalParser()
 
@@ -248,8 +219,6 @@ async def run():
     for row in tqdm(content):
 
         doc_id = str(row["id"])
-        if doc_id in processed:
-            continue
 
         so = str(meta_map.get(row["id"], {}).get("document_number", "N/A"))
 
@@ -261,19 +230,18 @@ async def run():
             "articles": articles,
             "chunks": chunks
         })
-        total_chunks = sum(len(d["chunks"]) for d in pending)
 
-        if total_chunks >= MAX_CHUNKS_PER_BATCH:
-            print("flush batch: pending docs =", len(pending), "total chunks =", total_chunks)
-            start_time = time.time()
-            await flush(pending, embed, q_mgr, db, processed)
-            end_time = time.time()
-            print(f"batch flush time: {end_time - start_time:.2f} seconds")
+        # ✅ FIX: chỉ tính article
+        total_articles = sum(len(d["articles"]) for d in pending)
 
-    await flush(pending, embed, q_mgr, db, processed)
+        if total_articles >= MAX_ARTICLES_PER_FLUSH:
+            print("flush batch:", len(pending), "docs,", total_articles, "articles")
+            await flush(pending, embed, q_mgr, db)
+
+    await flush(pending, embed, q_mgr, db)
 
 # ===== FLUSH =====
-async def flush(pending, embed, q_mgr, db, processed):
+async def flush(pending, embed, q_mgr, db):
 
     if not pending:
         return
@@ -285,12 +253,7 @@ async def flush(pending, embed, q_mgr, db, processed):
         chunks.extend(d["chunks"])
         ids.append(d["doc_id"])
 
-    try:
-        await process_batch(articles, chunks, ids, embed, q_mgr, db)
-        processed.update(ids)
-    except Exception as e:
-        logger.error(f"FATAL batch fail: {e}", exc_info=True)
-        raise
+    await process_batch(articles, chunks, ids, embed, q_mgr, db)
 
     pending.clear()
 

@@ -16,7 +16,7 @@ async def ask(request: AskRequest, fastapi_req: Request):
 
 @router.post("/stream")
 async def stream_ask(request: AskRequest, fastapi_req: Request):
-    pipeline: LegalRAGPipeline = fastapi_req.app.state.pipeline
+    pipeline: fastapi_req.app.state.pipeline
     
     async def event_generator():
         try:
