@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 512))
 DOCS_PER_COMMIT = 50 # int(os.getenv("DOCS_PER_COMMIT", 200))
-MAX_EMBED_CHARS = int(os.getenv("MAX_EMBED_CHARS", 500))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 100))
+MAX_EMBED_CHARS = int(os.getenv("MAX_EMBED_CHARS", 1000))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 30))
 QDRANT_BATCH = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", 256))
 MAX_CHUNKS_PER_BATCH = 800
 
@@ -126,7 +126,7 @@ def load_ids(db):
 
 
 # IMPROVE MULTI-THREADING/ASYNC EMBEDDING
-EMBED_BATCH = 32          # 16–64 tùy RAM/GPU
+EMBED_BATCH = 64          # 16–64 tùy RAM/GPU
 EMBED_CONCURRENCY = 4     # 2–8 tùy CPU/GPU
 
 sem = asyncio.Semaphore(EMBED_CONCURRENCY)
