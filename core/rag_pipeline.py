@@ -1,6 +1,7 @@
 import os
 import asyncio
-from typing import List, Dict, Any, Optional, AsyncGenerator
+import aiosqlite
+from typing import List, Dict, Any, Optional, AsyncGenerator, Tuple
 
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import QueryBundle
@@ -17,14 +18,6 @@ from tools.qwen_dashscope_client import QwenDashScopeClient
 import torch
 
 
-def _build_context_str(nodes: List[NodeWithScore]) -> str:
-    return "\n\n".join(
-        f"Văn bản: {n.node.metadata.get('so_ky_hieu')} - {n.node.metadata.get('article_title')}\n"
-        f"Nội dung:\n{n.node.get_content()}"
-        for n in nodes
-    )
-
-
 def _unique_keep_order(items: List[str]) -> List[str]:
     seen = set()
     out = []
@@ -35,39 +28,63 @@ def _unique_keep_order(items: List[str]) -> List[str]:
     return out
 
 
+def _node_article_uuid(node: NodeWithScore) -> str:
+    return str(node.node.metadata.get("article_uuid") or node.node.node_id)
+
+
+def _build_context_str(nodes: List[NodeWithScore]) -> str:
+    return "\n\n".join(
+        f"Văn bản: {n.node.metadata.get('so_ky_hieu')} - {n.node.metadata.get('article_title')}\n"
+        f"Nội dung:\n{n.node.get_content()}"
+        for n in nodes
+    )
+
+
+def _build_article_rerank_text(node: TextNode, max_chars: int = 4000) -> str:
+    title = node.metadata.get("article_title") or node.metadata.get("so_ky_hieu") or ""
+    content = node.get_content() or ""
+    content = " ".join(content.split())
+    if len(content) > max_chars:
+        content = content[:max_chars]
+    return f"{title}\n{content}".strip()
+
+
 class LegalHybridRetriever(BaseRetriever):
     """
-    Article-first retriever for the legal RAG pipeline.
+    Article-first hybrid retriever.
 
-    Flow:
-    1. Query article collection in Qdrant.
-    2. Expand candidate articles into chunks from SQLite.
-    3. Optional rerank at chunk level.
-    4. Return top articles as final context nodes.
+    Primary path:
+    1. Qdrant semantic search over legal_articles.
+    2. SQLite BM25 over article titles.
+    3. Fuse article candidates.
+    4. Rerank article candidates.
+
+    Legacy fallback:
+    5. Chunk-level vector + FTS search, then map back to article candidates.
     """
 
     def __init__(
         self,
-        classifier: Optional[LegalQueryClassifier],
+        classifier: LegalQueryClassifier,
         vector_retriever: QdrantRetriever,
         fts_retriever: SQLiteFTS5Retriever,
         db_path: str = "legal_poc.db",
+        rrf_k: int = 60,
         top_k: int = 5,
         article_top_k: int = 20,
-        chunk_fetch_limit: int = 250,
-        rerank_top_n: int = 10,
+        title_bm25_top_k: int = 20,
         rerank_input_size: int = 30,
         use_classifier: bool = True,
-        use_fts_fallback: bool = False,
+        use_fts_fallback: bool = True,
     ):
         self.classifier = classifier
         self.vector_retriever = vector_retriever
         self.fts_retriever = fts_retriever
         self.db_path = db_path
+        self.rrf_k = rrf_k
         self.top_k = top_k
         self.article_top_k = article_top_k
-        self.chunk_fetch_limit = chunk_fetch_limit
-        self.rerank_top_n = rerank_top_n
+        self.title_bm25_top_k = title_bm25_top_k
         self.rerank_input_size = rerank_input_size
         self.use_classifier = use_classifier
         self.use_fts_fallback = use_fts_fallback
@@ -83,48 +100,43 @@ class LegalHybridRetriever(BaseRetriever):
 
         super().__init__()
 
-    async def _retrieve_article_candidates(
+    def _accumulate_rrf(
         self,
-        query_bundle: QueryBundle,
-        query_str: str,
-    ) -> List[NodeWithScore]:
-        """
-        Primary retrieval path: article-level semantic search.
-        """
-        article_nodes = await self.vector_retriever.aretrieve_articles(
-            query_bundle,
-            top_k=self.article_top_k,
-        )
+        results: List[NodeWithScore],
+        fused_scores: Dict[str, float],
+        node_by_uuid: Dict[str, NodeWithScore],
+    ) -> None:
+        for rank, res in enumerate(results):
+            article_uuid = _node_article_uuid(res)
+            fused_scores[article_uuid] = fused_scores.get(article_uuid, 0.0) + 1.0 / (
+                self.rrf_k + rank + 1
+            )
+            if article_uuid not in node_by_uuid:
+                node_by_uuid[article_uuid] = res
 
-        if article_nodes:
-            return article_nodes
-
-        # Optional fallback: if article collection is empty or not available,
-        # use legacy chunk retrieval and map back to article candidates.
-        if not self.use_fts_fallback:
-            return []
-
+    async def _legacy_chunk_fallback(self, query_bundle: QueryBundle, query_str: str) -> List[NodeWithScore]:
         legacy_chunk_nodes = await asyncio.gather(
             self.vector_retriever.aretrieve_with_filter(query_bundle),
             self.fts_retriever.aretrieve(query_str),
         )
 
-        fused: Dict[str, float] = {}
+        fused_chunk_scores: Dict[str, float] = {}
         article_uuid_to_score: Dict[str, float] = {}
 
-        # Simple RRF-like accumulation on chunks, then group by article_uuid.
         for source_nodes in legacy_chunk_nodes:
             for rank, res in enumerate(source_nodes):
                 cid = res.node.node_id
-                fused[cid] = fused.get(cid, 0.0) + 1.0 / (60 + rank + 1)
+                fused_chunk_scores[cid] = fused_chunk_scores.get(cid, 0.0) + 1.0 / (
+                    self.rrf_k + rank + 1
+                )
                 article_uuid = res.node.metadata.get("article_uuid")
                 if article_uuid:
                     article_uuid_to_score[article_uuid] = max(
                         article_uuid_to_score.get(article_uuid, 0.0),
-                        fused[cid],
+                        fused_chunk_scores[cid],
                     )
 
-        if not fused:
+        if not article_uuid_to_score:
             return []
 
         top_article_uuids = sorted(
@@ -137,109 +149,13 @@ class LegalHybridRetriever(BaseRetriever):
             return []
 
         articles = await self.fts_retriever.get_articles_by_uuids(top_article_uuids)
-        return articles
-
-    async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
-        query_str = query_bundle.query_str
-
-        # 1. Optional classification (useful for future filtering)
-        if self.use_classifier and self.classifier is not None:
-            try:
-                _classification = await self.classifier.classify(query_str)
-                _domains = getattr(_classification, "domains", []) or []
-                # Currently not used yet, but kept for future filtering.
-            except Exception:
-                pass
-
-        # 2. Article-level retrieval
-        article_candidates = await self._retrieve_article_candidates(query_bundle, query_str)
-        if not article_candidates:
-            return []
-
-        article_uuids = _unique_keep_order(
-            [n.node.metadata.get("article_uuid") or n.node.node_id for n in article_candidates]
-        )
-
-        # 3. Expand candidate articles to chunks from SQLite
-        chunk_nodes = await self.fts_retriever.get_chunks_by_articles(
-            article_uuids,
-            limit=self.chunk_fetch_limit,
-        )
-
-        if not chunk_nodes:
-            # No chunks found, return articles directly.
-            return article_candidates[: self.top_k]
-
-        # 4. Optional rerank on chunks for better article ranking
-        scored_chunk_nodes: List[NodeWithScore] = []
-
-        if self._reranker is not None:
-            rerank_pool = chunk_nodes[: self.rerank_input_size]
-            valid_pairs = [
-                (query_str, n.node.get_content())
-                for n in rerank_pool
-                if n.node.get_content().strip()
-            ]
-
-            if valid_pairs:
-                scores = self._reranker.predict(valid_pairs)
-                for node, score in sorted(zip(rerank_pool, scores), key=lambda x: -x[1]):
-                    scored_chunk_nodes.append(
-                        NodeWithScore(node=node.node, score=float(score))
-                    )
-        else:
-            scored_chunk_nodes = chunk_nodes[: self.rerank_top_n]
-
-        if not scored_chunk_nodes:
-            scored_chunk_nodes = chunk_nodes[: self.rerank_top_n]
-
-        # 5. Aggregate chunk scores back to articles
-        article_scores: Dict[str, float] = {}
-
-        for n in scored_chunk_nodes:
-            article_uuid = n.node.metadata.get("article_uuid")
-            if not article_uuid:
-                continue
-
-            score = float(n.score or 0.0)
-            if article_uuid not in article_scores or score > article_scores[article_uuid]:
-                article_scores[article_uuid] = score
-
-        # If reranker did not produce usable article grouping, fall back to article candidates
-        if not article_scores:
-            return article_candidates[: self.top_k]
-
-        # 6. Fetch canonical article text from SQLite for final context
-        top_article_uuids = sorted(
-            article_scores,
-            key=article_scores.get,
-            reverse=True,
-        )[: self.top_k]
-        articles = await self.fts_retriever.get_articles_by_uuids(top_article_uuids)
-
-        if not articles:
-            return article_candidates[: self.top_k]
-
         article_map = {n.node.metadata.get("article_uuid"): n for n in articles}
-        results: List[NodeWithScore] = []
 
+        results: List[NodeWithScore] = []
         for aid in top_article_uuids:
             article_node = article_map.get(aid)
             if article_node is None:
                 continue
-
-            # Prefer reranked score if available, otherwise keep semantic article score.
-            final_score = article_scores.get(aid, 0.0)
-            if final_score <= 0:
-                final_score = next(
-                    (
-                        cand.score
-                        for cand in article_candidates
-                        if cand.node.metadata.get("article_uuid") == aid
-                    ),
-                    0.0,
-                )
-
             results.append(
                 NodeWithScore(
                     node=TextNode(
@@ -247,11 +163,102 @@ class LegalHybridRetriever(BaseRetriever):
                         id_=article_node.node.node_id,
                         metadata=article_node.node.metadata,
                     ),
-                    score=float(final_score),
+                    score=float(article_uuid_to_score.get(aid, 0.0)),
                 )
             )
 
-        return results[: self.top_k]
+        return results
+
+    async def _retrieve_article_candidates(
+        self,
+        query_bundle: QueryBundle,
+        query_str: str,
+    ) -> List[NodeWithScore]:
+        """
+        Primary retrieval path: Qdrant article semantic search + BM25 on article title.
+        """
+        qdrant_task = self.vector_retriever.aretrieve_articles(
+            query_bundle,
+            top_k=self.article_top_k,
+        )
+        bm25_task = self.fts_retriever.aretrieve_articles_by_title(
+            query_str,
+            top_k=self.title_bm25_top_k,
+        )
+
+        article_nodes, title_nodes = await asyncio.gather(qdrant_task, bm25_task)
+
+        if not article_nodes and not title_nodes:
+            if not self.use_fts_fallback:
+                return []
+            return await self._legacy_chunk_fallback(query_bundle, query_str)
+
+        fused_scores: Dict[str, float] = {}
+        node_by_uuid: Dict[str, NodeWithScore] = {}
+
+        self._accumulate_rrf(article_nodes, fused_scores, node_by_uuid)
+        self._accumulate_rrf(title_nodes, fused_scores, node_by_uuid)
+
+        if not fused_scores:
+            return []
+
+        ranked_article_uuids = sorted(
+            fused_scores,
+            key=fused_scores.get,
+            reverse=True,
+        )[: max(self.article_top_k, self.title_bm25_top_k, self.rerank_input_size)]
+
+        results: List[NodeWithScore] = []
+        for aid in ranked_article_uuids:
+            node = node_by_uuid.get(aid)
+            if node is None:
+                continue
+            results.append(
+                NodeWithScore(
+                    node=node.node,
+                    score=float(fused_scores.get(aid, 0.0)),
+                )
+            )
+
+        return results
+
+    async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
+        query_str = query_bundle.query_str
+
+        if self.use_classifier and self.classifier is not None:
+            try:
+                _classification = await self.classifier.classify(query_str)
+                _domains = getattr(_classification, "domains", []) or []
+            except Exception:
+                pass
+
+        article_candidates = await self._retrieve_article_candidates(query_bundle, query_str)
+        if not article_candidates:
+            return []
+
+        if self._reranker is not None:
+            rerank_pool = article_candidates[: self.rerank_input_size]
+            valid_pairs: List[Tuple[str, str]] = []
+            valid_nodes: List[NodeWithScore] = []
+
+            for candidate in rerank_pool:
+                content = _build_article_rerank_text(candidate.node)
+                if content.strip():
+                    valid_pairs.append((query_str, content))
+                    valid_nodes.append(candidate)
+
+            if valid_pairs:
+                scores = self._reranker.predict(valid_pairs)
+                reranked = sorted(zip(valid_nodes, scores), key=lambda x: -x[1])
+                results = [
+                    NodeWithScore(node=item[0].node, score=float(item[1]))
+                    for item in reranked[: self.top_k]
+                ]
+                if results:
+                    return results
+
+        # Fallback when reranker is absent or produces no output.
+        return article_candidates[: self.top_k]
 
     def _retrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         return asyncio.run(self._aretrieve(query_bundle))

@@ -94,7 +94,7 @@ class QdrantRetriever:
                 query=query_embedding,
                 using="dense",
                 limit=limit,
-                with_payload=True,  # TODO: cót hể để false rồi query DB (trả về hết content)
+                with_payload=True,
             )
             hits = response.points
         except Exception as e:

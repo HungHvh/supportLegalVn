@@ -25,7 +25,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - qdrant_data:/qdrant/storage
     networks:
       - legal-network
     deploy:
@@ -37,3 +37,6 @@ networks:
   legal-network:
     name: legal-network
     driver: bridge
+
+volumes:
+  qdrant_data:
