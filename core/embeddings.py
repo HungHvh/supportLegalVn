@@ -1,15 +1,13 @@
-import asyncio
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from typing import List, Dict, Optional
 import torch
 
 from sentence_transformers import SentenceTransformer
+from core.constants import SAFE_EMBEDDING_MODEL_NAME
 
 logger = logging.getLogger(__name__)
-
-SAFE_EMBEDDING_MODEL_NAME = "bkai-foundation-models/vietnamese-bi-encoder"
 
 class EmbeddingProvider(ABC):
     """
@@ -66,13 +64,47 @@ class VietnameseSBERTProvider(EmbeddingProvider):
 from fastembed import SparseTextEmbedding
 
 class SparseEmbeddingProvider:
-    """Sử dụng SPLADE hoặc BM25 từ fastembed để tạo Sparse Vectors."""
+    """Sử dụng SPLADE hoặc BM25 từ fastembed để tạo Sparse Vectors.
+
+    Trên Windows hoặc môi trường thiếu DLL/onnxruntime, provider này sẽ tự
+    động chuyển sang trạng thái không khả dụng thay vì làm hỏng quá trình khởi động.
+    """
+
     def __init__(self, model_name: str = "prithivida/Splade_PP_en_v1"):
-        # Lưu ý: Hiện tại fastembed chưa có model SPLADE chuyên dụng cho tiếng Việt 
+        self.model_name = model_name
+        self.model = None
+        self._init_error: Optional[Exception] = None
+
+        # Lưu ý: Hiện tại fastembed chưa có model SPLADE chuyên dụng cho tiếng Việt
         # nhưng BM25/Splade vẫn hoạt động tốt như một túi từ (bag-of-words).
-        self.model = SparseTextEmbedding(model_name=model_name)
+        try:
+            from fastembed import SparseTextEmbedding
+        except Exception as exc:
+            self._init_error = exc
+            logger.warning(
+                "Sparse embeddings are unavailable; falling back to dense-only mode: %s",
+                exc,
+            )
+            return
+
+        try:
+            self.model = SparseTextEmbedding(model_name=model_name)
+        except Exception as exc:
+            self._init_error = exc
+            logger.warning(
+                "Failed to initialize sparse embedding model '%s'; dense-only mode will be used: %s",
+                model_name,
+                exc,
+            )
+
+    @property
+    def is_available(self) -> bool:
+        return self.model is not None
 
     async def batch_get_sparse_embeddings(self, texts: List[str]):
+        if self.model is None:
+            return [{"indices": [], "values": []} for _ in texts]
+
         # Trả về iterator của các đối tượng SparseVector (indices, values)
         embeddings = list(self.model.embed(texts))
         return [

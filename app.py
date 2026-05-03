@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 import traceback
 
 import llama_index.core
+from torch.cuda import device
+
 llama_index.core.global_handler = None
 
 load_dotenv()
@@ -32,6 +34,15 @@ async def lifespan(app: FastAPI):
             model_name=classifier_model,
         )
         v_retriever = QdrantRetriever()
+        # Pre-create Qdrant client to avoid first-request setup latency.
+        # Block startup until client created so the first request does not pay init cost.
+        try:
+            import asyncio as _asyncio
+            # run client initialization in a thread but await it so startup waits
+            await _asyncio.to_thread(v_retriever._get_client)
+            print("[Startup] Qdrant client initialized during startup")
+        except Exception as e:
+            print(f"[Warning] Pre-init Qdrant client failed during startup: {e}")
         f_retriever = SQLiteFTS5Retriever()
         
         hybrid_retriever = LegalHybridRetriever(
@@ -108,4 +119,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)

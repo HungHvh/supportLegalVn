@@ -1,5 +1,6 @@
 import aiosqlite
 import re
+import time
 from typing import List, Optional
 
 from llama_index.core import QueryBundle
@@ -133,6 +134,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
         limit = top_k or self.top_k
 
         nodes: List[NodeWithScore] = []
+        start_time = time.time()
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
@@ -157,7 +159,6 @@ class SQLiteFTS5Retriever(BaseRetriever):
                         la.so_ky_hieu,
                         la.article_title,
                         la.article_path,
-                        la.full_content,
                         -bm25({article_table}) AS score
                     FROM {article_table} fts
                     JOIN legal_articles la ON la.article_uuid = fts.article_uuid
@@ -179,7 +180,8 @@ class SQLiteFTS5Retriever(BaseRetriever):
                             "type": "ARTICLE",
                         }
                         node = TextNode(
-                            text=row["full_content"] or row["article_title"] or "",
+                            # Candidate stage is metadata-only; full content is hydrated later.
+                            text=row["article_title"] or row["so_ky_hieu"] or "",
                             metadata=metadata,
                             id_=row["article_uuid"],
                         )
@@ -187,6 +189,10 @@ class SQLiteFTS5Retriever(BaseRetriever):
         except Exception as e:
             print(f"[Error] SQLite article title BM25 retrieval failed: {e}")
 
+        print(
+            "[SQLiteFTS5Retriever] Title BM25 took "
+            f"{time.time() - start_time:.2f}s, hits: {len(nodes)}"
+        )
         return nodes
 
     async def get_chunks_by_articles(

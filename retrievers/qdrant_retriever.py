@@ -1,10 +1,13 @@
 import os
+import time
 from typing import List, Optional
 
 from llama_index.core import QueryBundle
 from llama_index.core.schema import NodeWithScore, TextNode
+from qdrant_client.http import models as qmodels
+# from torch.nn.functional import embedding
 
-from core.embeddings import SAFE_EMBEDDING_MODEL_NAME
+from core.constants import SAFE_EMBEDDING_MODEL_NAME
 
 
 class QdrantRetriever:
@@ -48,6 +51,7 @@ class QdrantRetriever:
         if self._client is not None:
             return self._client
 
+        start = time.perf_counter()
         try:
             from qdrant_client import AsyncQdrantClient
 
@@ -55,8 +59,11 @@ class QdrantRetriever:
                 host=self._client_host,
                 port=self._client_port,
             )
+            elapsed = time.perf_counter() - start
+            print(f"[QdrantRetriever] Created AsyncQdrantClient in {elapsed:.2f}s")
         except Exception as e:
-            print(f"[Warning] Qdrant client unavailable: {e}")
+            elapsed = time.perf_counter() - start
+            print(f"[Warning] Qdrant client unavailable: {e} (setup took {elapsed:.2f}s)")
             self._client = None
 
         return self._client
@@ -75,6 +82,8 @@ class QdrantRetriever:
         Primary path:
         Search the `legal_articles` collection and return article-level nodes.
         """
+        retrieval_start = time.time()
+        
         if self.embed_model is None:
             return []
 
@@ -82,28 +91,50 @@ class QdrantRetriever:
         if client is None:
             return []
 
+        embed_start = time.time()
         query_embedding = await self._embed_query(query.query_str)
+        embed_duration = time.time() - embed_start
+        print(f"[QdrantRetriever] Embedding took {embed_duration:.2f}s")
+        
         if query_embedding is None:
             return []
 
         limit = top_k or self.top_k
 
+        qdrant_start = time.time()
         try:
             response = await client.query_points(
                 collection_name="legal_articles",
-                query=query_embedding,
+                query=qmodels.NearestQuery(nearest=query_embedding),
                 using="dense",
                 limit=limit,
-                with_payload=True,
+                # Keep payload small in candidate stage; full text is hydrated from SQLite later.
+                with_payload=[
+                    "article_uuid",
+                    "doc_id",
+                    "so_ky_hieu",
+                    "article_title",
+                    "article_path",
+                ],
             )
             hits = response.points
+            qdrant_duration = time.time() - qdrant_start
+            print(f"[QdrantRetriever] Qdrant query took {qdrant_duration:.2f}s, hits: {len(hits)}")
         except Exception as e:
             print(f"[Error] Qdrant article search failed: {e}")
             return []
 
         nodes: List[NodeWithScore] = []
+        parse_total = 0.0
+        metadata_total = 0.0
+        node_ctor_total = 0.0
+        append_total = 0.0
+        map_total_start = time.perf_counter()
+
         for hit in hits:
+            t0 = time.perf_counter()
             payload = hit.payload or {}
+            t1 = time.perf_counter()
 
             metadata = {
                 "article_uuid": payload.get("article_uuid", str(hit.id)),
@@ -113,14 +144,40 @@ class QdrantRetriever:
                 "article_path": payload.get("article_path"),
                 "type": "ARTICLE",
             }
+            t2 = time.perf_counter()
 
             node = TextNode(
-                text=payload.get("full_content", ""),
+                # Candidate stage only needs lightweight text; canonical full content is fetched later.
+                text=payload.get("article_title", "") or payload.get("so_ky_hieu", ""),
                 id_=str(payload.get("article_uuid", hit.id)),
                 metadata=metadata,
+                embedding=None,  # Explicitly skip embedding
             )
-            nodes.append(NodeWithScore(node=node, score=hit.score))
+            t3 = time.perf_counter()
 
+            nodes.append(NodeWithScore(node=node, score=hit.score))
+            t4 = time.perf_counter()
+
+            parse_total += t1 - t0
+            metadata_total += t2 - t1
+            node_ctor_total += t3 - t2
+            append_total += t4 - t3
+
+        map_total = time.perf_counter() - map_total_start
+        hit_count = len(hits)
+        if hit_count:
+            print(
+                "[QdrantRetriever] Post-query map stats: "
+                f"total={map_total:.2f}s, hits={hit_count}, "
+                f"avg_parse={parse_total / hit_count * 1000:.2f}ms, "
+                f"avg_metadata={metadata_total / hit_count * 1000:.2f}ms, "
+                f"avg_node_ctor={node_ctor_total / hit_count * 1000:.2f}ms, "
+                f"avg_append={append_total / hit_count * 1000:.2f}ms"
+            )
+
+        total_duration = time.time() - retrieval_start
+        print(f"[QdrantRetriever] Total aretrieve_articles: {total_duration:.2f}s")
+        
         return nodes
 
     async def aretrieve_with_filter(
@@ -134,6 +191,8 @@ class QdrantRetriever:
 
         This is still kept for compatibility with older code paths.
         """
+        retrieval_start = time.time()
+        
         if self.embed_model is None:
             return []
 
@@ -141,7 +200,11 @@ class QdrantRetriever:
         if client is None:
             return []
 
+        embed_start = time.time()
         query_embedding = await self._embed_query(query.query_str)
+        embed_duration = time.time() - embed_start
+        print(f"[QdrantRetriever] Embedding took {embed_duration:.2f}s")
+        
         if query_embedding is None:
             return []
 
@@ -158,16 +221,19 @@ class QdrantRetriever:
                 ]
             )
 
+        qdrant_start = time.time()
         try:
             response = await client.query_points(
                 collection_name=self.collection_name,
-                query=query_embedding,
+                query=qmodels.NearestQuery(nearest=query_embedding),
                 using="dense",
                 query_filter=query_filter,
                 limit=self.top_k,
                 with_payload=True,
             )
             hits = response.points
+            qdrant_duration = time.time() - qdrant_start
+            print(f"[QdrantRetriever] Qdrant query took {qdrant_duration:.2f}s, hits: {len(hits)}")
         except Exception as e:
             print(f"[Error] Qdrant search failed: {e}")
             return []
@@ -186,6 +252,9 @@ class QdrantRetriever:
             )
             nodes.append(NodeWithScore(node=node, score=hit.score))
 
+        total_duration = time.time() - retrieval_start
+        print(f"[QdrantRetriever] Total aretrieve_with_filter: {total_duration:.2f}s")
+        
         return nodes
 
     async def aretrieve(self, query_str: str) -> List[NodeWithScore]:

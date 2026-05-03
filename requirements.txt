@@ -20,7 +20,7 @@ uvicorn
 sse-starlette
 httpx
 aiosqlite
-fastembed
+fastembed; platform_system != "Windows"
 langchain-google-genai
 tabulate
 tenacity

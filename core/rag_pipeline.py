@@ -1,5 +1,7 @@
 import os
 import asyncio
+import time
+
 import aiosqlite
 from typing import List, Dict, Any, Optional, AsyncGenerator, Tuple
 
@@ -186,7 +188,13 @@ class LegalHybridRetriever(BaseRetriever):
             top_k=self.title_bm25_top_k,
         )
 
+        article_stage_start = time.time()
         article_nodes, title_nodes = await asyncio.gather(qdrant_task, bm25_task)
+        print(
+            "[Retriever] Candidate gather time: "
+            f"{time.time() - article_stage_start:.2f}s "
+            f"(qdrant={len(article_nodes)}, bm25={len(title_nodes)})"
+        )
 
         if not article_nodes and not title_nodes:
             if not self.use_fts_fallback:
@@ -208,8 +216,26 @@ class LegalHybridRetriever(BaseRetriever):
             reverse=True,
         )[: max(self.article_top_k, self.title_bm25_top_k, self.rerank_input_size)]
 
+        hydrate_start = time.time()
+        hydrated_articles = await self.fts_retriever.get_articles_by_uuids(ranked_article_uuids)
+        hydrated_by_uuid = {
+            str(item.node.metadata.get("article_uuid") or item.node.node_id): item
+            for item in hydrated_articles
+        }
+
         results: List[NodeWithScore] = []
         for aid in ranked_article_uuids:
+            hydrated = hydrated_by_uuid.get(aid)
+            if hydrated is not None:
+                results.append(
+                    NodeWithScore(
+                        node=hydrated.node,
+                        score=float(fused_scores.get(aid, 0.0)),
+                    )
+                )
+                continue
+
+            # Fallback: keep candidate node if canonical article row was not found.
             node = node_by_uuid.get(aid)
             if node is None:
                 continue
@@ -220,11 +246,17 @@ class LegalHybridRetriever(BaseRetriever):
                 )
             )
 
+        print(
+            "[Retriever] Hydration time: "
+            f"{time.time() - hydrate_start:.2f}s, hydrated: {len(hydrated_articles)}"
+        )
+
         return results
 
     async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         query_str = query_bundle.query_str
 
+        start_time = time.time()
         if self.use_classifier and self.classifier is not None:
             try:
                 _classification = await self.classifier.classify(query_str)
@@ -232,7 +264,13 @@ class LegalHybridRetriever(BaseRetriever):
             except Exception:
                 pass
 
+        classifier_time = time.time()
+        print(f"[Retriever] Classification time: {classifier_time - start_time:.2f}s, domains: {_domains if 'domains' in locals() else 'N/A'}")
+
         article_candidates = await self._retrieve_article_candidates(query_bundle, query_str)
+        retriever_time = time.time()
+        print(f"[Retriever] Article retrieval time: {retriever_time - classifier_time:.2f}s, candidates found: {len(article_candidates)}")
+
         if not article_candidates:
             return []
 
@@ -255,6 +293,7 @@ class LegalHybridRetriever(BaseRetriever):
                     for item in reranked[: self.top_k]
                 ]
                 if results:
+                    print("[Retriever] Reranking time: {:.2f}s".format(time.time() - retriever_time))
                     return results
 
         # Fallback when reranker is absent or produces no output.
@@ -320,7 +359,9 @@ class LegalRAGPipeline:
 
     async def acustom_query(self, query_str: str) -> Dict[str, Any]:
         """Execute the full RAG pipeline."""
+        start_time = time.time()
         nodes = await self.retriever.aretrieve(query_str)
+        print(f"[RAG Pipeline] Retrieved {len(nodes)} nodes in {time.time() - start_time:.2f}s")
 
         context_str = _build_context_str(nodes)
 
@@ -330,6 +371,8 @@ class LegalRAGPipeline:
         )
 
         response = await self.client.generate_content_async(prompt)
+        print(
+            f"[RAG Pipeline] Generated prompt of length {len(prompt)} characters, time taken: {time.time() - start_time:.2f}s")
 
         citations = []
         for n in nodes:
