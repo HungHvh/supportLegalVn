@@ -256,16 +256,16 @@ class LegalHybridRetriever(BaseRetriever):
     async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         query_str = query_bundle.query_str
 
-        start_time = time.time()
-        if self.use_classifier and self.classifier is not None:
-            try:
-                _classification = await self.classifier.classify(query_str)
-                _domains = getattr(_classification, "domains", []) or []
-            except Exception:
-                pass
+        # start_time = time.time()
+        # if self.use_classifier and self.classifier is not None:
+        #     try:
+        #         _classification = await self.classifier.classify(query_str)
+        #         _domains = getattr(_classification, "domains", []) or []
+        #     except Exception:
+        #         pass
 
         classifier_time = time.time()
-        print(f"[Retriever] Classification time: {classifier_time - start_time:.2f}s, domains: {_domains if 'domains' in locals() else 'N/A'}")
+        # print(f"[Retriever] Classification time: {classifier_time - start_time:.2f}s, domains: {_domains if 'domains' in locals() else 'N/A'}")
 
         article_candidates = await self._retrieve_article_candidates(query_bundle, query_str)
         retriever_time = time.time()
@@ -274,27 +274,27 @@ class LegalHybridRetriever(BaseRetriever):
         if not article_candidates:
             return []
 
-        if self._reranker is not None:
-            rerank_pool = article_candidates[: self.rerank_input_size]
-            valid_pairs: List[Tuple[str, str]] = []
-            valid_nodes: List[NodeWithScore] = []
-
-            for candidate in rerank_pool:
-                content = _build_article_rerank_text(candidate.node)
-                if content.strip():
-                    valid_pairs.append((query_str, content))
-                    valid_nodes.append(candidate)
-
-            if valid_pairs:
-                scores = self._reranker.predict(valid_pairs)
-                reranked = sorted(zip(valid_nodes, scores), key=lambda x: -x[1])
-                results = [
-                    NodeWithScore(node=item[0].node, score=float(item[1]))
-                    for item in reranked[: self.top_k]
-                ]
-                if results:
-                    print("[Retriever] Reranking time: {:.2f}s".format(time.time() - retriever_time))
-                    return results
+        # if self._reranker is not None:
+        #     rerank_pool = article_candidates[: self.rerank_input_size]
+        #     valid_pairs: List[Tuple[str, str]] = []
+        #     valid_nodes: List[NodeWithScore] = []
+        #
+        #     for candidate in rerank_pool:
+        #         content = _build_article_rerank_text(candidate.node)
+        #         if content.strip():
+        #             valid_pairs.append((query_str, content))
+        #             valid_nodes.append(candidate)
+        #
+        #     if valid_pairs:
+        #         scores = self._reranker.predict(valid_pairs)
+        #         reranked = sorted(zip(valid_nodes, scores), key=lambda x: -x[1])
+        #         results = [
+        #             NodeWithScore(node=item[0].node, score=float(item[1]))
+        #             for item in reranked[: self.top_k]
+        #         ]
+        #         if results:
+        #             print("[Retriever] Reranking time: {:.2f}s".format(time.time() - retriever_time))
+        #             return results
 
         # Fallback when reranker is absent or produces no output.
         return article_candidates[: self.top_k]
@@ -405,3 +405,37 @@ class LegalRAGPipeline:
         async for chunk in self.client.astream_query(prompt):
             if chunk.text:
                 yield chunk.text
+
+    async def retrieve_only(self, query_str: str, top_k: int = 15) -> List[Dict[str, Any]]:
+        """
+        Isolated retrieval without LLM generation or classifier overhead.
+        Purpose: Direct measurement of embedding + Qdrant latency for performance testing.
+
+        Returns list of dicts with: id, score, title, so_ky_hieu
+        """
+        import time
+
+        query_bundle = QueryBundle(query_str=query_str)
+
+        # Direct retrieval without classification
+        start = time.time()
+        results = await self.retriever._aretrieve(query_bundle)
+        latency_ms = (time.time() - start) * 1000
+
+        # Limit to top_k
+        top_results = results[:top_k]
+
+        # Format for testing
+        formatted = []
+        for node in top_results:
+            formatted.append(
+                {
+                    "id": node.node.node_id,
+                    "score": float(node.score),
+                    "title": node.node.metadata.get("article_title", ""),
+                    "so_ky_hieu": node.node.metadata.get("so_ky_hieu", ""),
+                    "retrieval_latency_ms": latency_ms,
+                }
+            )
+
+        return formatted

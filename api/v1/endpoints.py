@@ -2,9 +2,16 @@ from fastapi import APIRouter, Request, HTTPException
 from sse_starlette.sse import EventSourceResponse
 import json
 import asyncio
+import time
+import logging
 
 from api.models import AskRequest, AskResponse, HealthResponse
-# from core.rag_pipeline import LegalRAGPipeline (Deferred to avoid torch import error)
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
+
+class TestRAGRequest(BaseModel):
+    query: str
 
 router = APIRouter()
 
@@ -51,3 +58,44 @@ async def health():
         "db_connected": True, # Should be verified with real ping
         "qdrant_connected": True # Should be verified with real ping
     }
+
+@router.post("/test-rag")
+async def test_rag_endpoint(request: TestRAGRequest, fastapi_req: Request):
+    """
+    Isolated RAG performance test — bypass Classifier and LLM.
+    Purpose: Measure embedding + Qdrant retrieval latency for performance testing.
+    
+    Request: {"query": "Tội trộm cắp tài sản"}
+    Response: {"query": str, "top_results_count": int, "elapsed_ms": float, "status": str}
+    """
+    if not request.query or len(request.query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="query cannot be empty")
+    
+    start_time = time.time()
+    query = request.query.strip()
+    
+    try:
+        logger.info(f"TEST_RAG_ENDPOINT_START query={query[:50]}")
+        pipeline = fastapi_req.app.state.pipeline
+        
+        # Call retrieve_only for isolated RAG core measurement
+        results = await pipeline.retrieve_only(query, top_k=5)
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"TEST_RAG_ENDPOINT_COMPLETE elapsed={elapsed:.2f}ms results={len(results)}")
+        
+        return {
+            "query": query,
+            "top_results_count": len(results),
+            "results": results,
+            "elapsed_ms": elapsed,
+            "status": "success"
+        }
+    
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="Request timeout after 30 seconds")
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"Qdrant unavailable: {str(e)}")
+    except Exception as e:
+        logger.error(f"test_rag_endpoint error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

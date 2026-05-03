@@ -121,7 +121,7 @@ class QdrantRetriever:
             qdrant_duration = time.time() - qdrant_start
             print(f"[QdrantRetriever] Qdrant query took {qdrant_duration:.2f}s, hits: {len(hits)}")
         except Exception as e:
-            print(f"[Error] Qdrant article search failed: {e}")
+            print(f"[Error] Qdrant article search failed: {repr(e)}")
             return []
 
         nodes: List[NodeWithScore] = []
@@ -210,8 +210,6 @@ class QdrantRetriever:
 
         query_filter = None
         if domains and "General" not in domains:
-            from qdrant_client.http import models as qmodels
-
             query_filter = qmodels.Filter(
                 must=[
                     qmodels.FieldCondition(
@@ -229,13 +227,20 @@ class QdrantRetriever:
                 using="dense",
                 query_filter=query_filter,
                 limit=self.top_k,
-                with_payload=True,
+                # Keep payload small in candidate stage; full text is hydrated from SQLite later.
+                with_payload=[
+                    "article_uuid",
+                    "doc_id",
+                    "so_ky_hieu",
+                    "article_title",
+                    "article_path",
+                ],
             )
             hits = response.points
             qdrant_duration = time.time() - qdrant_start
             print(f"[QdrantRetriever] Qdrant query took {qdrant_duration:.2f}s, hits: {len(hits)}")
         except Exception as e:
-            print(f"[Error] Qdrant search failed: {e}")
+            print(f"[Error] Qdrant search failed: {repr(e)}")
             return []
 
         nodes: List[NodeWithScore] = []

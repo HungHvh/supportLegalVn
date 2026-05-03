@@ -8,10 +8,11 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 ...
 ## Current Status
-- **Status**: v2.0 Execution (Phase 7 UI Integration Complete)
-- **Phase**: 07 (Complete)
-- **Report**: [.planning/phases/07-production-deployment-ui-integration/07-SUMMARY.md](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/phases/07-production-deployment-ui-integration/07-SUMMARY.md)
-- **Next Step**: Start Phase 10 (Article-Level Chunking & Re-index — Critical data quality fix).
+- **Status**: v2.0 Execution (Phase 11 Wave 2 RAG Baseline Testing - READY FOR EXECUTION)
+- **Phase**: 11 (Performance Testing & Monitoring) — WAVE 2 SETUP COMPLETE
+- **Report**: [.planning/phases/11-performance-testing-monitoring/WAVE2_EXECUTION_GUIDE.md](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/phases/11-performance-testing-monitoring/WAVE2_EXECUTION_GUIDE.md)
+- **Infrastructure**: ✅ Wave 1 Complete | 📊 Wave 2 Test Setup Ready (4-terminal execution guide + phase1 results template)
+- **Next Step**: Manual execution: Use 4 terminals to run 20-30 min load test. See WAVE2_EXECUTION_GUIDE.md
 
 ## Milestones
 
@@ -21,6 +22,8 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Recent Activity
 
+- **2026-05-03**: Phase 11 WAVE 2 SETUP COMPLETE: Created WAVE2_EXECUTION_GUIDE.md with 4-terminal architecture, PHASE1_RESULTS_TEMPLATE.md for data collection, ready for manual execution.
+- **2026-05-03**: Phase 11 WAVE 1 COMPLETE: Infrastructure setup finished—test endpoints, retrieve_only() method, environment documentation all ready.
 - **2026-04-28**: Phase 7 completed: Frontend UI Integration (Next.js Split-screen Dashboard).
 - **2026-04-28**: Phase 06.4 added: Replace Gemini with Groq for RAG response generation.
 - **2026-04-28**: Phase 6.3 completed: Groq (Llama-3) Classifier Integration with extreme low latency.
@@ -43,10 +46,14 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 6.3 inserted after Phase 6.2: Groq (Llama-3) Classifier Provider (URGENT).
 - Phase 06.4 inserted after Phase 6.3: Groq RAG Generator Integration (Replacing Gemini) (URGENT).
 - Phase 10 added at end of v2.0: Article-Level Chunking & Full Re-index — Fix indexer.py content truncation + 10× speed improvement for 518K documents.
+- Phase 11 added at end of v2.0: Performance Testing & Monitoring — Comprehensive performance testing plan for query, classifier, RAG, and Rerank components.
+- Phase 11 DISCUSS completed (2026-05-03): 3-phase testing strategy, Windows/WSL2 risk mitigations, Locust tooling, docker stats monitoring.
+- Phase 11 PLAN completed (2026-05-03): 5 execution waves, 12 tasks, acceptance criteria, UAT checklist, team assignments, decision gates.
+- Phase 11 WAVE 1 executed (2026-05-03): Test infrastructure setup — created /api/v1/test-rag endpoint, retrieve_only() method, ENVIRONMENT.md docs. Ready for Wave 2 baseline testing.
 
 ## Pending Todos
 
 (No pending todos)
 
 ---
-*Last updated: 2026-04-28*
+*Last updated: 2026-05-03*
