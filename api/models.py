@@ -5,6 +5,7 @@ class Citation(BaseModel):
     source: str = Field(..., description="Document number or title of the legal source")
     text: str = Field(..., description="Excerpt or snippet from the legal document")
     score: float = Field(..., description="Relevance score (RRF)")
+    article_uuid: Optional[str] = Field(None, description="UUID of the canonical article")
 
 class AskRequest(BaseModel):
     query: str = Field(..., example="Thủ tục thành lập công ty TNHH")

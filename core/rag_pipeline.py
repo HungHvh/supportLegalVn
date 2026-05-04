@@ -376,12 +376,19 @@ class LegalRAGPipeline:
             f"[RAG Pipeline] Generated prompt of length {len(prompt)} characters, time taken: {time.time() - start_time:.2f}s")
 
         citations = []
+        seen_sources = set()
         for n in nodes:
+            source_name = f"{n.node.metadata.get('so_ky_hieu')} - {n.node.metadata.get('article_title')}"
+            if source_name in seen_sources:
+                continue
+            seen_sources.add(source_name)
+            
             citations.append(
                 {
-                    "source": f"{n.node.metadata.get('so_ky_hieu')} - {n.node.metadata.get('article_title')}",
+                    "source": source_name,
                     "text": n.node.get_content()[:300] + "...",
                     "score": float(n.score),
+                    "article_uuid": str(n.node.metadata.get("article_uuid") or n.node.node_id),
                 }
             )
 

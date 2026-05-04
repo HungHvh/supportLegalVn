@@ -32,6 +32,7 @@
 - [ ] Phase 10: Article-Level Chunking & Full Re-index (Fix content truncation & speed)
 - [x] Phase 11: Performance Testing & Monitoring (Query, Classifier, RAG, Rerank) — completed 2026-05-03
 - [x] Phase 12: Legal Search API for Full Content Retrieval — completed 2026-05-03
+- [x] Phase 13: Frontend Original Content Display with Highlights — completed 2026-05-04
 
 ## Progress
 
@@ -52,7 +53,8 @@
 | 9. Production Deployment | v2.0 | 0/0 | Planned | - |
 | 10. Article-Level Chunking & Re-index | v2.0 | 1/2 | Planned | - |
 | 11. Performance Testing & Monitoring | v2.0 | 12/12 | Complete | 2026-05-03 |
-| 12. Legal Search API | v2.0 | 0/0 | Planned | - |
+| 12. Legal Search API | v2.0 | 0/0 | Complete | 2026-05-03 |
+| 13. Frontend Highlight | v2.0 | 2/2 | Complete | 2026-05-04 |
 
 ---
 *Last updated: 2026-05-03 — Phase 11 PLAN.md created (ready for execution planning)*

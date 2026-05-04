@@ -5,8 +5,11 @@ import MainPane from "@/components/MainPane";
 import ChatSidebar from "@/components/ChatSidebar";
 
 export interface Citation {
+  source?: string;
+  article_uuid?: string;
   text: string;
-  metadata: {
+  score?: number;
+  metadata?: {
     source: string;
     file_name: string;
     article_title?: string;
