@@ -20,3 +20,29 @@ class HealthResponse(BaseModel):
     version: str
     db_connected: bool
     qdrant_connected: bool
+
+
+class ArticleResult(BaseModel):
+    article_uuid: str
+    doc_id: Optional[str] = None
+    so_ky_hieu: Optional[str] = None
+    title: Optional[str] = None
+    score: float = 0.0
+    full_content: str = ""
+    doc_type: Optional[str] = None
+    highlighted_content: Optional[str] = None
+
+
+class SearchArticlesRequest(BaseModel):
+    query: Optional[str] = None
+    article_uuid: Optional[str] = None
+    doc_type: Optional[str] = None
+    top_k: Optional[int] = 10
+
+
+class SearchArticlesResponse(BaseModel):
+    query: str
+    top_results_count: int
+    results: List[ArticleResult]
+    status: str
+

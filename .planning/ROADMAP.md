@@ -22,14 +22,16 @@
 ### 🚧 v2.0 Frontend & Chat (Planned)
 
 - [ ] Phase 6.1: Qwen-14B-Chat Classifier Provider (DashScope Primary, Ollama Backup) *(INSERTED)*
+- [ ] Phase 6.1: Qwen-14B-Chat Classifier Provider (DashScope Primary, Ollama Backup)
 - [x] Phase 6.2: DeepSeek API Classifier Integration (Replacing Qwen) — completed 2026-04-28
 - [x] Phase 6.3: Groq (Llama-3) Classifier Provider (Fastest Latency) — completed 2026-04-28
-- [ ] Phase 06.4: Groq RAG Generator Integration (Replacing Gemini)
+- [x] Phase 06.4: Groq RAG Generator Integration (Replacing Gemini) — completed 2026-04-28
 - [x] Phase 7: Frontend UI Integration — completed 2026-04-28
 - [ ] Phase 8: Chat History & Feedback Loop
 - [ ] Phase 9: Production Deployment & Infrastructure (Vercel, EC2, Nginx)
 - [ ] Phase 10: Article-Level Chunking & Full Re-index (Fix content truncation & speed)
 - [x] Phase 11: Performance Testing & Monitoring (Query, Classifier, RAG, Rerank) — completed 2026-05-03
+- [x] Phase 12: Legal Search API for Full Content Retrieval — completed 2026-05-03
 
 ## Progress
 
@@ -50,6 +52,7 @@
 | 9. Production Deployment | v2.0 | 0/0 | Planned | - |
 | 10. Article-Level Chunking & Re-index | v2.0 | 1/2 | Planned | - |
 | 11. Performance Testing & Monitoring | v2.0 | 12/12 | Complete | 2026-05-03 |
+| 12. Legal Search API | v2.0 | 0/0 | Planned | - |
 
 ---
 *Last updated: 2026-05-03 — Phase 11 PLAN.md created (ready for execution planning)*

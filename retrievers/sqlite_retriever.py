@@ -123,6 +123,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
         self,
         query_str: str,
         top_k: Optional[int] = None,
+        doc_type: Optional[str] = None,
     ) -> List[NodeWithScore]:
         """
         Primary keyword path for article candidates.
@@ -163,11 +164,28 @@ class SQLiteFTS5Retriever(BaseRetriever):
                     FROM {article_table} fts
                     JOIN legal_articles la ON la.article_uuid = fts.article_uuid
                     WHERE {article_table} MATCH ?
+                """
+                params = [safe_query]
+                
+                if doc_type:
+                    doc_type_lower = doc_type.lower()
+                    if "luật" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%Luật%'"
+                    elif "nghị định" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%NĐ-CP%'"
+                    elif "thông tư" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%TT-%'"
+                    else:
+                        sql += " AND la.so_ky_hieu LIKE ?"
+                        params.append(f"%{doc_type}%")
+
+                sql += """
                     ORDER BY score DESC
                     LIMIT ?
                 """
+                params.append(limit)
 
-                async with db.execute(sql, (safe_query, limit)) as cursor:
+                async with db.execute(sql, tuple(params)) as cursor:
                     rows = await cursor.fetchall()
 
                     for row in rows:

@@ -6,13 +6,13 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value**: Provide accurate, context-aware legal information from the full Vietnamese legal corpus with high precision via pre-query classification.
 **Current focus**: Milestone 06 Audit & Cleanup
-...
+
 ## Current Status
-- **Status**: Phase 11 Complete — Performance Testing & Monitoring Analysis Finished
-- **Phase**: 11 (Performance Testing & Monitoring) — ALL WAVES COMPLETE
+- **Status**: Phase 12 Complete
+- **Phase**: 12 (Legal Search API for Full Content Retrieval) — COMPLETE
 - **Report**: [.planning/phases/11-performance-testing-monitoring/HANDOFF_SUMMARY.md](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/phases/11-performance-testing-monitoring/HANDOFF_SUMMARY.md)
 - **Results**: ✅ RAG Core: p95 160ms (PASS) | ✗ Full Pipeline: 81% Failure (Quota 429)
-- **Next Step**: Start Phase 12 (Orchestration Optimization) to address quota bottlenecks and implement local classifier.
+- **Next Step**: Ongoing Maintenance
 
 ## Milestones
 
@@ -22,6 +22,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 ## Recent Activity
 
+- **2026-05-03**: Phase 12 COMPLETE: Legal Search API implemented for frontend support.
 - **2026-05-03**: Phase 11 COMPLETE: All 5 waves executed. RAG Core performance verified (160ms p95), but E2E pipeline hit severe rate limits on Groq/Gemini. Bottleneck analysis and handoff summary provided.
 - **2026-05-03**: Phase 11 WAVE 2 SETUP COMPLETE: Created WAVE2_EXECUTION_GUIDE.md with 4-terminal architecture, PHASE1_RESULTS_TEMPLATE.md for data collection, ready for manual execution.
 - **2026-05-03**: Phase 11 WAVE 1 COMPLETE: Infrastructure setup finished—test endpoints, retrieve_only() method, environment documentation all ready.
@@ -52,6 +53,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 11 PLAN completed (2026-05-03): 5 execution waves, 12 tasks, acceptance criteria, UAT checklist, team assignments, decision gates.
 - Phase 11 WAVE 1 executed (2026-05-03): Test infrastructure setup — created /api/v1/test-rag endpoint, retrieve_only() method, ENVIRONMENT.md docs. Ready for Wave 2 baseline testing.
 - Phase 11 COMPLETE (2026-05-03): Executed all 5 waves. RAG Core (Phase 1) passed UAT; Classifier (Phase 2) and Full E2E (Phase 3) failed due to API quota. Bottleneck analysis recommends local classifier and semantic caching.
+- Phase 12 added: Legal Search API for Full Content Retrieval (Supporting frontend with raw source data).
 
 ## Pending Todos
 
