@@ -99,3 +99,37 @@ async def test_rag_endpoint(request: TestRAGRequest, fastapi_req: Request):
     except Exception as e:
         logger.error(f"test_rag_endpoint error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+@router.post("/test-classifier")
+async def test_classifier_endpoint(request: TestRAGRequest, fastapi_req: Request):
+    """
+    Isolated Classifier performance test.
+    """
+    if not request.query or len(request.query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="query cannot be empty")
+    
+    start_time = time.time()
+    query = request.query.strip()
+    
+    try:
+        logger.info(f"TEST_CLASSIFIER_ENDPOINT_START query={query[:50]}")
+        pipeline = fastapi_req.app.state.pipeline
+        classifier = pipeline.retriever.classifier
+        
+        classification = await classifier.classify(query)
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.info(f"TEST_CLASSIFIER_ENDPOINT_COMPLETE elapsed={elapsed:.2f}ms")
+        
+        return {
+            "query": query,
+            "domains": classification.domains,
+            "confidence": classification.confidence,
+            "is_explicit_filter": classification.is_explicit_filter,
+            "elapsed_ms": elapsed,
+            "provider": classifier.provider,
+            "status": "success"
+        }
+    
+    except Exception as e:
+        logger.error(f"test_classifier_endpoint error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

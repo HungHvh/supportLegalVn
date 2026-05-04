@@ -9,11 +9,11 @@ param(
     [int]$IntervalSeconds = 5
 )
 
-Write-Host "Qdrant Monitoring Started" -ForegroundColor Green
-Write-Host "RAM Threshold: $ThresholdGB GB" -ForegroundColor Yellow
-Write-Host "CPU Threshold: $CPUThreshold %" -ForegroundColor Yellow
-Write-Host "Interval: $IntervalSeconds seconds" -ForegroundColor Yellow
-Write-Host "Press Ctrl+C to stop`n" -ForegroundColor Cyan
+Write-Output "Qdrant Monitoring Started"
+Write-Output "RAM Threshold: $ThresholdGB GB"
+Write-Output "CPU Threshold: $CPUThreshold %"
+Write-Output "Interval: $IntervalSeconds seconds"
+Write-Output "Press Ctrl+C to stop`n"
 
 $peakRAMUsed = 0
 $peakCPUUsed = 0
@@ -28,26 +28,15 @@ while ($true) {
             $parts = $stats -split '\s+' | Where-Object { $_.Length -gt 0 }
 
             # Typical format: CONTAINER ID | NAME | CPU % | MEM USAGE / LIMIT | MEM % | NET I/O | BLOCK I/O | PIDS
-            # Find the CPU and MEM values
-            $cpuPercent = 0
+            # parts: 0:ID, 1:NAME, 2:CPU%, 3:MEM_USAGE, 4:/, 5:LIMIT, 6:MEM%, ...
+            
+            $cpuPercent = [float]($parts[2] -replace '%', '')
+            $memStr = $parts[3]
+            
             $memUsage = 0
-
-            for ($i = 0; $i -lt $parts.Count; $i++) {
-                if ($parts[$i] -match '^\d+\.\d+%$') {
-                    $cpuPercent = [float]($parts[$i] -replace '%', '')
-                    break
-                }
-            }
-
-            for ($i = 0; $i -lt $parts.Count; $i++) {
-                if ($parts[$i] -match '^\d+\.?\d*[GM]B$') {
-                    $memStr = $parts[$i]
-                    if ($memStr -match '(\d+\.?\d*)(G?)' ) {
-                        $memUsage = [float]$Matches[1]
-                        if ($Matches[2] -eq 'M') { $memUsage /= 1024 }  # Convert MB to GB
-                    }
-                    break
-                }
+            if ($memStr -match '(\d+\.?\d*)([GM])i?B' ) {
+                $memUsage = [float]$Matches[1]
+                if ($Matches[2] -eq 'M') { $memUsage /= 1024 }  # Convert MB to GB
             }
 
             $timestamp = Get-Date -Format "HH:mm:ss"
@@ -62,22 +51,22 @@ while ($true) {
 
             if ($memUsage -gt $ThresholdGB) {
                 $ramStatus = "⚠ ALERT"
-                Write-Host "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB" -ForegroundColor Red
+                Write-Output "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB"
             } elseif ($memUsage -gt ($ThresholdGB * 0.8)) {
                 $ramStatus = "⚠ WARNING"
-                Write-Host "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB" -ForegroundColor Yellow
+                Write-Output "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB"
             } else {
-                Write-Host "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB" -ForegroundColor Green
+                Write-Output "$timestamp | RAM: $([Math]::Round($memUsage, 2)) GB $ramStatus | CPU: $([Math]::Round($cpuPercent, 1))% | Peak RAM: $([Math]::Round($peakRAMUsed, 2)) GB"
             }
         }
         else {
-            Write-Host "$(Get-Date -Format 'HH:mm:ss') | Qdrant not running" -ForegroundColor Gray
+            Write-Output "$(Get-Date -Format 'HH:mm:ss') | Qdrant not running"
         }
 
         Start-Sleep -Seconds $IntervalSeconds
     }
     catch {
-        Write-Host "Error running docker stats: $_" -ForegroundColor Red
+        Write-Output "Error running docker stats: $_"
         Start-Sleep -Seconds $IntervalSeconds
     }
 }
