@@ -7,7 +7,6 @@ import logging
 
 from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse
 from pydantic import BaseModel
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,7 @@ async def search_articles(request: SearchArticlesRequest, fastapi_req: Request):
     to be used by frontends (RAG source attribution / show full content).
 
     Request options:
-    - {"query": "text"} -> runs the article-first hybrid retriever and returns top_k articles
+    - {"query": "so_ky_hieu"} -> searches by document identifier only
     - {"article_uuid": "..."} -> fetches the canonical article by UUID
 
     Response: {"query": str, "top_results_count": int, "results": [...]} where each
@@ -163,11 +162,12 @@ async def search_articles(request: SearchArticlesRequest, fastapi_req: Request):
         else:
             q = request.query.strip()
             top_k = int(request.top_k or 10)
-            # Use fts_retriever directly for fast article-level candidate retrieval
-            candidate_nodes = await pipeline.retriever.fts_retriever.aretrieve_articles_by_title(
+            # Search by số ký hiệu only; article_path/title fallback is removed to
+            # avoid slow scans on large datasets.
+            candidate_nodes = await pipeline.retriever.fts_retriever.aretrieve_articles_by_so_ky_hieu(
                 query_str=q,
                 top_k=top_k,
-                doc_type=request.doc_type
+                doc_type=request.doc_type,
             )
             
             # Hydrate full content

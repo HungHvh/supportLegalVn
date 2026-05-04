@@ -1,5 +1,21 @@
 import sqlite3
 import os
+import unicodedata
+
+
+def normalize_so_ky_hieu_key(value: str | None) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFD", value.strip().lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.replace("đ", "d")
+    text = text.replace("/", " ").replace("-", " ").replace("_", " ")
+    text = " ".join(text.split())
+    return text
+
+
+def normalize_so_ky_hieu(value: str | None) -> str:
+    return normalize_so_ky_hieu_key(value)
 
 def get_db_connection(db_path: str = "legal_poc.db") -> sqlite3.Connection:
     """
@@ -45,6 +61,11 @@ def init_db(db_path: str = "legal_poc.db", drop_existing: bool = False):
         cursor.execute("DROP TABLE IF EXISTS legal_articles")
         cursor.execute("DROP TABLE IF EXISTS legal_chunks")
         cursor.execute("DROP TABLE IF EXISTS chunks_fts")
+        cursor.execute("DROP INDEX IF EXISTS idx_la_doc_id")
+        cursor.execute("DROP INDEX IF EXISTS idx_la_so_ky_hieu")
+        cursor.execute("DROP INDEX IF EXISTS idx_la_so_ky_hieu_norm")
+        cursor.execute("DROP INDEX IF EXISTS idx_lc_article_uuid")
+        cursor.execute("DROP INDEX IF EXISTS idx_lc_doc_id")
         cursor.execute("DROP TRIGGER IF EXISTS legal_documents_ai")
         cursor.execute("DROP TRIGGER IF EXISTS legal_documents_ad")
         cursor.execute("DROP TRIGGER IF EXISTS legal_documents_au")
@@ -56,12 +77,15 @@ def init_db(db_path: str = "legal_poc.db", drop_existing: bool = False):
         article_uuid  TEXT PRIMARY KEY,
         doc_id        TEXT NOT NULL,
         so_ky_hieu    TEXT,
+        so_ky_hieu_norm TEXT,
         article_title TEXT,
         article_path  TEXT,
         full_content  TEXT NOT NULL
     );
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_la_doc_id ON legal_articles(doc_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_la_so_ky_hieu ON legal_articles(so_ky_hieu);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_la_so_ky_hieu_norm ON legal_articles(so_ky_hieu_norm);")
 
     # 2. Bảng legal_chunks (Chunk store - Khoản-level, links to article)
     cursor.execute("""

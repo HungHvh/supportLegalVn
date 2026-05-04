@@ -30,14 +30,14 @@ def mock_pipeline():
     mock.retriever.aretrieve = AsyncMock()
     mock.retriever.fts_retriever = MagicMock()
     mock.retriever.fts_retriever.get_articles_by_uuids = AsyncMock()
-    mock.retriever.fts_retriever.aretrieve_articles_by_title = AsyncMock()
+    mock.retriever.fts_retriever.aretrieve_articles_by_so_ky_hieu = AsyncMock()
     app.state.pipeline = mock
     return mock
 
 
 def test_search_by_query_returns_results(mock_pipeline):
     node = FakeNodeWithScore(FakeTextNode("uuid-1", {"article_uuid": "uuid-1", "article_title": "Điều 1", "so_ky_hieu": "123/2024/NĐ-CP"}, "Nội dung điều 1 về trộm cắp tài sản"), score=0.9)
-    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_title.return_value = [node]
+    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_so_ky_hieu.return_value = [node]
     mock_pipeline.retriever.fts_retriever.get_articles_by_uuids.return_value = [node]
 
     client = TestClient(app)
@@ -57,7 +57,7 @@ def test_search_by_query_returns_results(mock_pipeline):
 
 def test_search_with_explicit_doc_type(mock_pipeline):
     node = FakeNodeWithScore(FakeTextNode("uuid-3", {"article_uuid": "uuid-3", "so_ky_hieu": "123/Luật"}, "Nội dung"), score=0.8)
-    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_title.return_value = [node]
+    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_so_ky_hieu.return_value = [node]
     mock_pipeline.retriever.fts_retriever.get_articles_by_uuids.return_value = [node]
 
     client = TestClient(app)
@@ -87,7 +87,7 @@ def test_validation_error_when_no_query_or_uuid():
 
 
 def test_internal_exception_returns_500(mock_pipeline):
-    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_title.side_effect = Exception("boom")
+    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_so_ky_hieu.side_effect = Exception("boom")
     client = TestClient(app)
     resp = client.post("/api/v1/search-articles", json={"query": "x"})
     assert resp.status_code == 500

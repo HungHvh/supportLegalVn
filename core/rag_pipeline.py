@@ -91,14 +91,15 @@ class LegalHybridRetriever(BaseRetriever):
         self.use_classifier = use_classifier
         self.use_fts_fallback = use_fts_fallback
 
-        reranker_model = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
-        try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            self._reranker = CrossEncoder(reranker_model, device=device)
-            print(f"[OK] Reranker loaded: {reranker_model} on {device}")
-        except Exception as e:
-            print(f"[Warning] Failed to load reranker: {e}. Reranking will be skipped.")
-            self._reranker = None
+        # reranker_model = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+        # try:
+        #     device = "cuda" if torch.cuda.is_available() else "cpu"
+        #     self._reranker = CrossEncoder(reranker_model, device=device)
+        #     print(f"[OK] Reranker loaded: {reranker_model} on {device}")
+        # except Exception as e:
+        #     print(f"[Warning] Failed to load reranker: {e}. Reranking will be skipped.")
+        #     self._reranker = None
+        self._reranker = None  # Reranker is currently disabled due to loading issues; can be re-enabled when resolved.
 
         super().__init__()
 

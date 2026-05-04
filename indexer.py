@@ -3,7 +3,6 @@ import time
 import uuid
 import logging
 import asyncio
-from asyncio import timeout
 from time import monotonic
 from tqdm import tqdm
 
@@ -12,7 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client.http import models
 from dotenv import load_dotenv
 
-from db.sqlite import get_db_connection, init_db
+from db.sqlite import get_db_connection, init_db, normalize_so_ky_hieu
 from db.qdrant import QdrantManager
 from core.embeddings import VietnameseSBERTProvider, HybridEmbeddingProvider
 from core.parser import VietnameseLegalParser, LegalNode, LegalLevel
@@ -104,6 +103,7 @@ def collect(root, doc_id, so_ky_hieu):
                 "article_uuid": aid,
                 "doc_id": doc_id,
                 "so_ky_hieu": so_ky_hieu,
+                "so_ky_hieu_norm": normalize_so_ky_hieu(so_ky_hieu),
                 "article_title": node.title or so_ky_hieu,
                 "article_path": node.full_path,
                 "full_content": full,
@@ -177,13 +177,14 @@ async def process_batch(articles, chunks, doc_ids, embed, q_mgr, db):
     # ===== SQLITE: canonical articles =====
     cur.executemany(
         """INSERT OR IGNORE INTO legal_articles
-        (article_uuid, doc_id, so_ky_hieu, article_title, article_path, full_content)
-        VALUES (?,?,?,?,?,?)""",
+        (article_uuid, doc_id, so_ky_hieu, so_ky_hieu_norm, article_title, article_path, full_content)
+        VALUES (?,?,?,?,?,?,?)""",
         [
             (
                 a["article_uuid"],
                 a["doc_id"],
                 a["so_ky_hieu"],
+                    a["so_ky_hieu_norm"],
                 a["article_title"],
                 a["article_path"],
                 a["full_content"],
@@ -348,6 +349,7 @@ async def rebuild_qdrant_from_sqlite(db, embed, q_mgr):
                 "article_uuid": r[0],
                 "doc_id": r[1],
                 "so_ky_hieu": r[2],
+                "so_ky_hieu_norm": normalize_so_ky_hieu(r[2]),
                 "article_title": r[3],
                 "article_path": r[4],
                 "full_content": r[5],

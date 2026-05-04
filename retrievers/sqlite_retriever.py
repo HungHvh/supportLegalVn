@@ -6,6 +6,7 @@ from typing import List, Optional
 from llama_index.core import QueryBundle
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.schema import NodeWithScore, TextNode
+from db.sqlite import normalize_so_ky_hieu_key
 
 
 class SQLiteFTS5Retriever(BaseRetriever):
@@ -25,6 +26,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
         self.top_k = top_k
         self._article_fts_table: Optional[str] = None
         self._chunk_fts_table: Optional[str] = None
+        self._so_ky_hieu_index_cache: Optional[dict[str, List[str]]] = None
         super().__init__()
 
     def _retrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
@@ -58,6 +60,32 @@ class SQLiteFTS5Retriever(BaseRetriever):
                 return table_name
 
         return None
+
+    async def _column_exists(self, db: aiosqlite.Connection, table_name: str, column_name: str) -> bool:
+        async with db.execute(f"PRAGMA table_info({table_name})") as cursor:
+            rows = await cursor.fetchall()
+            return any(row[1] == column_name for row in rows)
+
+    async def _load_so_ky_hieu_index_cache(self, db: aiosqlite.Connection) -> dict[str, List[str]]:
+        if self._so_ky_hieu_index_cache is not None:
+            return self._so_ky_hieu_index_cache
+
+        index_map: dict[str, List[str]] = {}
+        async with db.execute(
+            "SELECT DISTINCT so_ky_hieu FROM legal_articles WHERE so_ky_hieu IS NOT NULL AND so_ky_hieu != ''"
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        for row in rows:
+            raw = row[0]
+            norm = normalize_so_ky_hieu_key(raw)
+            if not norm:
+                continue
+            index_map.setdefault(norm, []).append(raw)
+            index_map.setdefault(raw.strip(), []).append(raw)
+
+        self._so_ky_hieu_index_cache = index_map
+        return index_map
 
     async def _aretrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
         """Legacy chunk-level search using FTS5."""
@@ -213,6 +241,143 @@ class SQLiteFTS5Retriever(BaseRetriever):
         )
         return nodes
 
+    async def aretrieve_articles_by_so_ky_hieu(
+        self,
+        query_str: str,
+        top_k: Optional[int] = None,
+        doc_type: Optional[str] = None,
+    ) -> List[NodeWithScore]:
+        """
+        Search canonical articles by document identifier (`so_ky_hieu`) only.
+
+        Uses raw exact match first, then a normalized match against
+        `so_ky_hieu_norm` when that column exists.
+        """
+        exact_query = query_str.strip()
+        normalized_query = normalize_so_ky_hieu_key(query_str)
+        limit = top_k or self.top_k
+
+        nodes: List[NodeWithScore] = []
+        start_time = time.time()
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+
+                index_map = await self._load_so_ky_hieu_index_cache(db)
+                raw_values = []
+                for key in (exact_query, normalized_query):
+                    if key and key in index_map:
+                        raw_values.extend(index_map[key])
+                # Deduplicate while preserving order
+                seen_raw = set()
+                raw_values = [rv for rv in raw_values if rv and not (rv in seen_raw or seen_raw.add(rv))]
+
+                if raw_values:
+                    placeholders = ",".join("?" * len(raw_values))
+                    sql = f"""
+                        SELECT
+                            article_uuid,
+                            doc_id,
+                            so_ky_hieu,
+                            article_title,
+                            article_path,
+                            so_ky_hieu_norm,
+                            1.0 AS score
+                        FROM legal_articles la
+                        WHERE la.so_ky_hieu IN ({placeholders})
+                    """
+                    params = raw_values
+                else:
+                    has_norm_column = await self._column_exists(db, "legal_articles", "so_ky_hieu_norm")
+
+                    if has_norm_column:
+                        sql = """
+                            SELECT
+                                article_uuid,
+                                doc_id,
+                                so_ky_hieu,
+                                article_title,
+                                article_path,
+                                so_ky_hieu_norm,
+                                1.0 AS score
+                            FROM legal_articles la
+                            WHERE la.so_ky_hieu = ?
+                               OR la.so_ky_hieu_norm = ?
+                               OR lower(replace(replace(replace(la.so_ky_hieu, '/', ' '), '-', ' '), '_', ' ')) = ?
+                        """
+                        params = [exact_query, normalized_query, normalized_query]
+                    else:
+                        sql = """
+                            SELECT
+                                article_uuid,
+                                doc_id,
+                                so_ky_hieu,
+                                article_title,
+                                article_path,
+                                NULL AS so_ky_hieu_norm,
+                                1.0 AS score
+                            FROM legal_articles la
+                            WHERE la.so_ky_hieu = ?
+                               OR lower(replace(replace(replace(la.so_ky_hieu, '/', ' '), '-', ' '), '_', ' ')) = ?
+                        """
+                        params = [exact_query, normalized_query]
+
+                if doc_type:
+                    doc_type_lower = doc_type.lower()
+                    if "luật" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%Luật%'"
+                    elif "nghị định" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%NĐ-CP%'"
+                    elif "thông tư" in doc_type_lower:
+                        sql += " AND la.so_ky_hieu LIKE '%TT-%'"
+                    else:
+                        sql += " AND la.so_ky_hieu LIKE ?"
+                        params.append(f"%{doc_type}%")
+
+                sql += "\n                    LIMIT ?\n                "
+                params.append(limit)
+
+                async with db.execute(sql, tuple(params)) as cursor:
+                    rows = await cursor.fetchall()
+
+                    for row in rows:
+                        metadata = {
+                            "article_uuid": row["article_uuid"],
+                            "doc_id": row["doc_id"],
+                            "so_ky_hieu": row["so_ky_hieu"],
+                            "so_ky_hieu_norm": row["so_ky_hieu_norm"],
+                            "article_title": row["article_title"],
+                            "article_path": row["article_path"],
+                            "type": "ARTICLE",
+                        }
+                        node = TextNode(
+                            text=row["article_title"] or row["so_ky_hieu"] or "",
+                            metadata=metadata,
+                            id_=row["article_uuid"],
+                        )
+                        nodes.append(NodeWithScore(node=node, score=float(row["score"])))
+        except Exception as e:
+            print(f"[Error] SQLite article identifier retrieval failed: {e}")
+
+        print(
+            "[SQLiteFTS5Retriever] so_ky_hieu search took "
+            f"{time.time() - start_time:.2f}s, hits: {len(nodes)}"
+        )
+        return nodes
+
+    async def aretrieve_articles_by_identifier(
+        self,
+        query_str: str,
+        top_k: Optional[int] = None,
+        doc_type: Optional[str] = None,
+    ) -> List[NodeWithScore]:
+        """Backward-compatible alias for so_ky_hieu search."""
+        return await self.aretrieve_articles_by_so_ky_hieu(
+            query_str,
+            top_k=top_k,
+            doc_type=doc_type,
+        )
+
     async def get_chunks_by_articles(
         self,
         article_uuids: List[str],
@@ -305,6 +470,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
                 article_uuid,
                 doc_id,
                 so_ky_hieu,
+                so_ky_hieu_norm,
                 article_title,
                 article_path,
                 full_content
@@ -323,6 +489,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
                             "article_uuid": row["article_uuid"],
                             "doc_id": row["doc_id"],
                             "so_ky_hieu": row["so_ky_hieu"],
+                            "so_ky_hieu_norm": row["so_ky_hieu_norm"],
                             "article_title": row["article_title"],
                             "article_path": row["article_path"],
                             "type": "ARTICLE",
