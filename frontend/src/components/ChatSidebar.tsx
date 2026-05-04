@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Message } from "@/app/page";
-import { Send, Loader2, Bot, User } from "lucide-react";
+import { Send, Loader2, Bot, User, AlertTriangle } from "lucide-react";
 
 interface ChatSidebarProps {
   messages: Message[];
@@ -107,6 +107,12 @@ export default function ChatSidebar({ messages, onSendMessage, isLoading }: Chat
             <Send size={18} className="ml-0.5" />
           </button>
         </form>
+        <div className="flex items-center justify-center gap-1.5 mt-3 text-[11px] text-amber-600 bg-amber-50/80 py-1.5 px-3 rounded text-center">
+          <AlertTriangle size={12} className="shrink-0" />
+          <span>
+            <strong>Lưu ý:</strong> Thông tin này chỉ mang tính chất tham khảo, không thay thế cho tư vấn pháp lý chuyên nghiệp.
+          </span>
+        </div>
       </div>
     </div>
   );

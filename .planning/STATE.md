@@ -8,10 +8,10 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Phase 14 Complete
-- **Phase**: 14 (Frontend Chat History Retention and RAG Context Loop) — COMPLETE
-- **Report**: .planning/phases/14-frontend-chat-history-context/14-SUMMARY.md
-- **Next Step**: Milestone Audit or Phase 15
+- **Status**: Phase 15 Complete
+- **Phase**: 15 (Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank) — COMPLETE
+- **Report**: .planning/phases/15-ui-legal-tags-rerank/15-SUMMARY.md
+- **Next Step**: Milestone Audit
 
 ## Milestones
 
@@ -20,6 +20,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - [x] **v1.2 Quality Assurance** - Phase 6 (Retrieval Evaluation)
 
 ## Recent Activity
+- **2026-05-04**: Phase 15 COMPLETE: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
 - **2026-05-04**: Phase 14 COMPLETE: Frontend Chat History Retention and RAG Context Loop.
 - **2026-05-04**: Phase 13 COMPLETE: Frontend Original Content Display with Highlights implemented in MainPane.
 - **2026-05-03**: Phase 12 COMPLETE: Legal Search API implemented for frontend support.
@@ -56,10 +57,11 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 12 added: Legal Search API for Full Content Retrieval (Supporting frontend with raw source data).
 - Phase 13 added: Frontend Original Content Display with Highlights.
 - Phase 14 added: Frontend Chat History Retention and RAG Context Loop.
+- Phase 15 added: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
 
 ## Pending Todos
 
 (No pending todos)
 
 ---
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-04*

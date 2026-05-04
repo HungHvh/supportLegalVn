@@ -34,6 +34,7 @@
 - [x] Phase 12: Legal Search API for Full Content Retrieval — completed 2026-05-03
 - [x] Phase 13: Frontend Original Content Display with Highlights — completed 2026-05-04
 - [x] Phase 14: Frontend Chat History Retention and RAG Context Loop — completed 2026-05-04
+- [ ] Phase 15: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank
 
 ## Progress
 
@@ -57,6 +58,7 @@
 | 12. Legal Search API | v2.0 | 0/0 | Complete | 2026-05-03 |
 | 13. Frontend Highlight | v2.0 | 2/2 | Complete | 2026-05-04 |
 | 14. Chat History Context Loop | v2.0 | 4/4 | Complete | 2026-05-04 |
+| 15. UI Legal Tags & Rerank | v2.0 | 2/2 | Complete | 2026-05-04 |
 
 ---
-*Last updated: 2026-05-03 — Phase 11 PLAN.md created (ready for execution planning)*
+*Last updated: 2026-05-04 — Phase 15 added*

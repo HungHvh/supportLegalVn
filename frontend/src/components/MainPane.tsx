@@ -7,6 +7,19 @@ interface MainPaneProps {
   citations: Citation[];
 }
 
+function getLegalTag(source: string) {
+  if (source.includes("QH")) {
+    return { label: "Luật / Nghị quyết", colorClass: "bg-red-100 text-red-700 border-red-200" };
+  }
+  if (source.includes("NĐ-CP") || source.includes("CP") || source.includes("TT")) {
+    return { label: "Văn bản hướng dẫn", colorClass: "bg-blue-100 text-blue-700 border-blue-200" };
+  }
+  if (source.includes("UBND")) {
+    return { label: "Văn bản địa phương", colorClass: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+  }
+  return { label: "Tài liệu", colorClass: "bg-zinc-100 text-zinc-700 border-zinc-200" };
+}
+
 export default function MainPane({ citations }: MainPaneProps) {
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null);
   
@@ -199,9 +212,19 @@ export default function MainPane({ citations }: MainPaneProps) {
           >
             <div className="bg-zinc-100/50 px-4 py-3 border-b border-zinc-200 flex justify-between items-center">
               <div>
-                <h3 className="font-semibold text-zinc-800 text-sm">
-                  {citation.source || citation.metadata?.file_name?.replace(".txt", "") || "Tài liệu"}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-zinc-800 text-sm">
+                    {citation.source || citation.metadata?.file_name?.replace(".txt", "") || "Tài liệu"}
+                  </h3>
+                  {citation.source && (() => {
+                    const tag = getLegalTag(citation.source);
+                    return (
+                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${tag.colorClass}`}>
+                        {tag.label}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {citation.metadata?.part_title && (
                     <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">

@@ -42,6 +42,17 @@ def _build_context_str(nodes: List[NodeWithScore]) -> str:
     )
 
 
+def _get_legal_priority(node: NodeWithScore) -> int:
+    so_ky_hieu = node.node.metadata.get("so_ky_hieu") or ""
+    if "QH" in so_ky_hieu:
+        return 1
+    elif "NĐ-CP" in so_ky_hieu or "CP" in so_ky_hieu or "TT" in so_ky_hieu:
+        return 2
+    elif "UBND" in so_ky_hieu:
+        return 3
+    return 2
+
+
 def _build_article_rerank_text(node: TextNode, max_chars: int = 4000) -> str:
     title = node.metadata.get("article_title") or node.metadata.get("so_ky_hieu") or ""
     content = node.get_content() or ""
@@ -339,8 +350,7 @@ class LegalRAGPipeline:
             "4. Kết luận (Conclusion): Đưa ra lời khuyên hoặc hướng giải quyết cuối cùng.\n\n"
             "Lưu ý quan trọng:\n"
             "- Nếu thông tin không có trong tài liệu, hãy nói rõ 'Tôi không tìm thấy quy định cụ thể cho vấn đề này trong cơ sở dữ liệu'.\n"
-            "- Tuyệt đối không được bịa đặt (hallucinate) số hiệu văn bản hoặc nội dung luật.\n"
-            "- Luôn đi kèm lời nhắc: 'Thông tin này chỉ mang tính chất tham khảo, không thay thế cho tư vấn pháp lý chuyên nghiệp'.\n\n"
+            "- Tuyệt đối không được bịa đặt (hallucinate) số hiệu văn bản hoặc nội dung luật.\n"            
             "{chat_history_str}"
             "Câu hỏi: {query_str}\n"
             "Trả lời:"
@@ -400,6 +410,8 @@ class LegalRAGPipeline:
         nodes = await self.retriever.aretrieve(search_query)
         print(f"[RAG Pipeline] Retrieved {len(nodes)} nodes in {time.time() - start_time:.2f}s")
 
+        nodes.sort(key=lambda n: (_get_legal_priority(n), -float(n.score)))
+
         context_str = _build_context_str(nodes)
         chat_history_str = self._format_chat_history(chat_history)
 
@@ -444,6 +456,8 @@ class LegalRAGPipeline:
             search_query = await self.arewrite_query(query_str, chat_history)
             
         nodes = await self.retriever.aretrieve(search_query)
+
+        nodes.sort(key=lambda n: (_get_legal_priority(n), -float(n.score)))
 
         context_str = _build_context_str(nodes)
         chat_history_str = self._format_chat_history(chat_history)
