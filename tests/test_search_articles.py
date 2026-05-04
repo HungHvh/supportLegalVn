@@ -36,7 +36,7 @@ def mock_pipeline():
 
 
 def test_search_by_query_returns_results(mock_pipeline):
-    node = FakeNodeWithScore(FakeTextNode("uuid-1", {"article_uuid": "uuid-1", "article_title": "Điều 1", "so_ky_hieu": "Văn bản A"}, "Nội dung điều 1"), score=0.9)
+    node = FakeNodeWithScore(FakeTextNode("uuid-1", {"article_uuid": "uuid-1", "article_title": "Điều 1", "so_ky_hieu": "123/2024/NĐ-CP"}, "Nội dung điều 1 về trộm cắp tài sản"), score=0.9)
     mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_title.return_value = [node]
     mock_pipeline.retriever.fts_retriever.get_articles_by_uuids.return_value = [node]
 
@@ -45,8 +45,27 @@ def test_search_by_query_returns_results(mock_pipeline):
     assert resp.status_code == 200
     j = resp.json()
     assert j["top_results_count"] == 1
-    assert j["results"][0]["article_uuid"] == "uuid-1"
-    assert "full_content" in j["results"][0]
+    result = j["results"][0]
+    assert result["article_uuid"] == "uuid-1"
+    assert "full_content" in result
+    
+    # Assert highlighting worked
+    assert "<b>trộm cắp</b>" in result["highlighted_content"].lower()
+    
+    # Assert doc_type mapping worked based on so_ky_hieu
+    assert result["doc_type"] == "Nghị định"
+
+def test_search_with_explicit_doc_type(mock_pipeline):
+    node = FakeNodeWithScore(FakeTextNode("uuid-3", {"article_uuid": "uuid-3", "so_ky_hieu": "123/Luật"}, "Nội dung"), score=0.8)
+    mock_pipeline.retriever.fts_retriever.aretrieve_articles_by_title.return_value = [node]
+    mock_pipeline.retriever.fts_retriever.get_articles_by_uuids.return_value = [node]
+
+    client = TestClient(app)
+    resp = client.post("/api/v1/search-articles", json={"query": "nội dung", "doc_type": "Luật"})
+    assert resp.status_code == 200
+    j = resp.json()
+    assert j["results"][0]["doc_type"] == "Luật"
+
 
 
 def test_search_by_uuid_fetches_article(mock_pipeline):
