@@ -18,7 +18,7 @@ router = APIRouter()
 @router.post("/ask", response_model=AskResponse)
 async def ask(request: AskRequest, fastapi_req: Request):
     pipeline = fastapi_req.app.state.pipeline
-    result = await pipeline.acustom_query(request.query)
+    result = await pipeline.acustom_query(request.query, request.chat_history)
     return result
 
 @router.post("/stream")
@@ -28,7 +28,7 @@ async def stream_ask(request: AskRequest, fastapi_req: Request):
     async def event_generator():
         try:
             # We stream tokens first
-            async for token in pipeline.astream_query(request.query):
+            async for token in pipeline.astream_query(request.query, request.chat_history):
                 yield {
                     "event": "message",
                     "data": json.dumps({"token": token})

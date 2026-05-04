@@ -341,6 +341,7 @@ class LegalRAGPipeline:
             "- Nếu thông tin không có trong tài liệu, hãy nói rõ 'Tôi không tìm thấy quy định cụ thể cho vấn đề này trong cơ sở dữ liệu'.\n"
             "- Tuyệt đối không được bịa đặt (hallucinate) số hiệu văn bản hoặc nội dung luật.\n"
             "- Luôn đi kèm lời nhắc: 'Thông tin này chỉ mang tính chất tham khảo, không thay thế cho tư vấn pháp lý chuyên nghiệp'.\n\n"
+            "{chat_history_str}"
             "Câu hỏi: {query_str}\n"
             "Trả lời:"
         )
@@ -358,16 +359,53 @@ class LegalRAGPipeline:
         else:
             raise ValueError(f"Unsupported generation provider: {provider}")
 
-    async def acustom_query(self, query_str: str) -> Dict[str, Any]:
+    async def arewrite_query(self, query: str, chat_history: List[Any]) -> str:
+        if not chat_history:
+            return query
+            
+        history_str = "\n".join([f"{msg.role.capitalize()}: {msg.content}" for msg in chat_history])
+        rewrite_prompt = (
+            "Dựa vào lịch sử trò chuyện dưới đây, hãy viết lại câu hỏi tiếp theo của người dùng "
+            "thành một câu hỏi duy nhất, độc lập và rõ ràng, chứa đầy đủ ngữ cảnh để có thể tìm kiếm tài liệu pháp luật. "
+            "Nếu câu hỏi đã rõ ràng, hãy giữ nguyên. Không trả lời câu hỏi, chỉ viết lại câu hỏi.\n\n"
+            f"Lịch sử:\n{history_str}\n\n"
+            f"Câu hỏi tiếp theo: {query}\n\n"
+            "Câu hỏi được viết lại:"
+        )
+        try:
+            response = await self.client.generate_content_async(rewrite_prompt)
+            rewritten = response.text.strip()
+            print(f"[RAG Pipeline] Query rewritten: '{query}' -> '{rewritten}'")
+            return rewritten
+        except Exception as e:
+            print(f"[RAG Pipeline] Query rewrite failed: {e}")
+            return query
+
+    def _format_chat_history(self, chat_history: Optional[List[Any]]) -> str:
+        if not chat_history:
+            return ""
+        history_str = "Lịch sử trò chuyện gần đây:\n"
+        for msg in chat_history:
+            history_str += f"{msg.role.capitalize()}: {msg.content}\n"
+        return history_str + "\n"
+
+    async def acustom_query(self, query_str: str, chat_history: Optional[List[Any]] = None) -> Dict[str, Any]:
         """Execute the full RAG pipeline."""
         start_time = time.time()
-        nodes = await self.retriever.aretrieve(query_str)
+        
+        search_query = query_str
+        if chat_history:
+            search_query = await self.arewrite_query(query_str, chat_history)
+            
+        nodes = await self.retriever.aretrieve(search_query)
         print(f"[RAG Pipeline] Retrieved {len(nodes)} nodes in {time.time() - start_time:.2f}s")
 
         context_str = _build_context_str(nodes)
+        chat_history_str = self._format_chat_history(chat_history)
 
         prompt = self.qa_prompt_template.format(
             context_str=context_str,
+            chat_history_str=chat_history_str,
             query_str=query_str,
         )
 
@@ -399,14 +437,20 @@ class LegalRAGPipeline:
             "confidence_score": 0.0,
         }
 
-    async def astream_query(self, query_str: str) -> AsyncGenerator[str, None]:
+    async def astream_query(self, query_str: str, chat_history: Optional[List[Any]] = None) -> AsyncGenerator[str, None]:
         """Stream the RAG response."""
-        nodes = await self.retriever.aretrieve(query_str)
+        search_query = query_str
+        if chat_history:
+            search_query = await self.arewrite_query(query_str, chat_history)
+            
+        nodes = await self.retriever.aretrieve(search_query)
 
         context_str = _build_context_str(nodes)
+        chat_history_str = self._format_chat_history(chat_history)
 
         prompt = self.qa_prompt_template.format(
             context_str=context_str,
+            chat_history_str=chat_history_str,
             query_str=query_str,
         )
 

@@ -7,8 +7,13 @@ class Citation(BaseModel):
     score: float = Field(..., description="Relevance score (RRF)")
     article_uuid: Optional[str] = Field(None, description="UUID of the canonical article")
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class AskRequest(BaseModel):
     query: str = Field(..., example="Thủ tục thành lập công ty TNHH")
+    chat_history: Optional[List[ChatMessage]] = Field(default_factory=list, description="Recent conversation history")
 
 class AskResponse(BaseModel):
     answer: str = Field(..., description="IRAC formatted response from the AI")

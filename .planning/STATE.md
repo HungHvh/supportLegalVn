@@ -8,10 +8,10 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Phase 13 Complete
-- **Phase**: 13 (Frontend Original Content Display with Highlights) — COMPLETE
-- **Report**: .planning/phases/13-frontend-original-content-highlight/13-SUMMARY.md
-- **Next Step**: Ongoing Development
+- **Status**: Phase 14 Complete
+- **Phase**: 14 (Frontend Chat History Retention and RAG Context Loop) — COMPLETE
+- **Report**: .planning/phases/14-frontend-chat-history-context/14-SUMMARY.md
+- **Next Step**: Milestone Audit or Phase 15
 
 ## Milestones
 
@@ -20,7 +20,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - [x] **v1.2 Quality Assurance** - Phase 6 (Retrieval Evaluation)
 
 ## Recent Activity
-
+- **2026-05-04**: Phase 14 COMPLETE: Frontend Chat History Retention and RAG Context Loop.
 - **2026-05-04**: Phase 13 COMPLETE: Frontend Original Content Display with Highlights implemented in MainPane.
 - **2026-05-03**: Phase 12 COMPLETE: Legal Search API implemented for frontend support.
 - **2026-05-03**: Phase 11 COMPLETE: All 5 waves executed. RAG Core performance verified (160ms p95), but E2E pipeline hit severe rate limits on Groq/Gemini. Bottleneck analysis and handoff summary provided.
@@ -55,6 +55,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 11 COMPLETE (2026-05-03): Executed all 5 waves. RAG Core (Phase 1) passed UAT; Classifier (Phase 2) and Full E2E (Phase 3) failed due to API quota. Bottleneck analysis recommends local classifier and semantic caching.
 - Phase 12 added: Legal Search API for Full Content Retrieval (Supporting frontend with raw source data).
 - Phase 13 added: Frontend Original Content Display with Highlights.
+- Phase 14 added: Frontend Chat History Retention and RAG Context Loop.
 
 ## Pending Todos
 

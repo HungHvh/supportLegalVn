@@ -29,6 +29,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSendMessage = async (content: string) => {
+    // Keep a sliding window of the last 4 messages (2 turns)
+    const chatHistoryWindow = messages.slice(-4);
+    
     const newMessages = [...messages, { role: "user", content } as Message];
     setMessages(newMessages);
     setIsLoading(true);
@@ -39,7 +42,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query: content }),
+        body: JSON.stringify({ query: content, chat_history: chatHistoryWindow }),
       });
 
       if (!response.ok) {
