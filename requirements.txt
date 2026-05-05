@@ -24,3 +24,5 @@ fastembed; platform_system != "Windows"
 langchain-google-genai
 tabulate
 tenacity
+cachetools==5.3.3
+

@@ -17,6 +17,7 @@ from tools.gemini_client import GeminiClient
 from tools.groq_client import GroqClient
 from tools.deepseek_client import DeepSeekClient
 from tools.qwen_dashscope_client import QwenDashScopeClient
+from core.security import llm_circuit_breaker
 import torch
 
 
@@ -383,7 +384,7 @@ class LegalRAGPipeline:
             "Câu hỏi được viết lại:"
         )
         try:
-            response = await self.client.generate_content_async(rewrite_prompt)
+            response = await llm_circuit_breaker.call(self.client.generate_content_async, rewrite_prompt)
             rewritten = response.text.strip()
             print(f"[RAG Pipeline] Query rewritten: '{query}' -> '{rewritten}'")
             return rewritten
@@ -421,7 +422,7 @@ class LegalRAGPipeline:
             query_str=query_str,
         )
 
-        response = await self.client.generate_content_async(prompt)
+        response = await llm_circuit_breaker.call(self.client.generate_content_async, prompt)
         print(
             f"[RAG Pipeline] Generated prompt of length {len(prompt)} characters, time taken: {time.time() - start_time:.2f}s")
 
@@ -478,7 +479,7 @@ class LegalRAGPipeline:
         # 3. Start Classification in background (don't wait for it to start streaming)
         classification_task = None
         if hasattr(self.retriever, "classifier") and self.retriever.classifier:
-            classification_task = asyncio.create_task(self.retriever.classifier.classify(search_query))
+            classification_task = asyncio.create_task(llm_circuit_breaker.call(self.retriever.classifier.classify, search_query))
 
         # 4. Prompt construction
         context_str = _build_context_str(nodes)
@@ -490,7 +491,7 @@ class LegalRAGPipeline:
         )
 
         # 5. Stream Tokens
-        async for chunk in self.client.astream_query(prompt):
+        async for chunk in llm_circuit_breaker.astream_call(self.client.astream_query, prompt):
             if chunk.text:
                 yield {"type": "token", "content": chunk.text}
             

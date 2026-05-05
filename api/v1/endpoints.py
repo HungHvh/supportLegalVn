@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from sse_starlette.sse import EventSourceResponse
 import json
 import asyncio
@@ -8,6 +8,7 @@ import base64
 from typing import Optional, List, Any
 
 from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse
+from api.dependencies import rate_limit_ask, rate_limit_search
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -17,13 +18,13 @@ class TestRAGRequest(BaseModel):
 
 router = APIRouter()
 
-@router.post("/ask", response_model=AskResponse)
+@router.post("/ask", response_model=AskResponse, dependencies=[Depends(rate_limit_ask)])
 async def ask(request: AskRequest, fastapi_req: Request):
     pipeline = fastapi_req.app.state.pipeline
     result = await pipeline.acustom_query(request.query, request.chat_history)
     return result
 
-@router.post("/stream")
+@router.post("/stream", dependencies=[Depends(rate_limit_ask)])
 async def stream_ask(request: AskRequest, fastapi_req: Request):
     pipeline = fastapi_req.app.state.pipeline
 
@@ -74,7 +75,7 @@ def _parse_chat_history(encoded_history: Optional[str]) -> Optional[List[Any]]:
         return None
 
 
-@router.get("/stream")
+@router.get("/stream", dependencies=[Depends(rate_limit_ask)])
 async def stream_ask_get(query: str, fastapi_req: Request, chat_history: Optional[str] = None):
     pipeline = fastapi_req.app.state.pipeline
 
@@ -124,7 +125,7 @@ async def health():
         "qdrant_connected": True # Should be verified with real ping
     }
 
-@router.post("/test-rag")
+@router.post("/test-rag", dependencies=[Depends(rate_limit_ask)])
 async def test_rag_endpoint(request: TestRAGRequest, fastapi_req: Request):
     """
     Isolated RAG performance test — bypass Classifier and LLM.
@@ -164,7 +165,7 @@ async def test_rag_endpoint(request: TestRAGRequest, fastapi_req: Request):
     except Exception as e:
         logger.error(f"test_rag_endpoint error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-@router.post("/test-classifier")
+@router.post("/test-classifier", dependencies=[Depends(rate_limit_ask)])
 async def test_classifier_endpoint(request: TestRAGRequest, fastapi_req: Request):
     """
     Isolated Classifier performance test.
@@ -200,7 +201,7 @@ async def test_classifier_endpoint(request: TestRAGRequest, fastapi_req: Request
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/search-articles", response_model=SearchArticlesResponse)
+@router.post("/search-articles", response_model=SearchArticlesResponse, dependencies=[Depends(rate_limit_search)])
 async def search_articles(request: SearchArticlesRequest, fastapi_req: Request):
     """
     Search articles (legal provisions) and return full canonical article rows

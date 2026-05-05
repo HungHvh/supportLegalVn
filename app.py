@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import traceback
 
 import llama_index.core
-from torch.cuda import device
+# from torch.cuda import device
 
 llama_index.core.global_handler = None
 
@@ -85,7 +85,7 @@ async def rate_limit_handler(request: Request, exc: exceptions.ResourceExhausted
     return JSONResponse(
         status_code=429,
         content={
-            "detail": "Gemini API quota exceeded. Retries failed. Please try again later.",
+            "detail": "API quota exceeded. Retries failed. Please try again later.",
             "retry_after": "60" # Default suggestion
         }
     )
