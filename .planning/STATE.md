@@ -8,9 +8,10 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Milestone v2.0 Evolution
-- **Phase**: 17 (API Gateway Layer) — COMPLETE
-- **Next Step**: Audit Phase 17 and proceed to Phase 8/9
+- **Status**: Milestone v3.0 Initiation
+- **Phase**: 18 (Tối ưu RAG & Qdrant - Hiệu năng) — PLANNED
+- **Next Step**: Start implementation of Semantic Cache in Phase 18
+
 
 ## Milestones
 
@@ -61,6 +62,8 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 15 added: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
 - Phase 16 added: Stream API Integration (Chuyển /ask sang /stream).
 - Phase 17 added: Lớp Bảo vệ API & Rate Limit (API Gateway Layer).
+- Phase 18 added: Tối ưu RAG & Qdrant - Hiệu năng (Semantic Cache, gRPC, Pre-filtering).
+
 
 ## Pending Todos
 

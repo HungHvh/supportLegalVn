@@ -25,7 +25,8 @@ class QdrantRetriever:
         self,
         collection_name: str = "legal_articles",
         host: str = os.getenv("QDRANT_HOST", "localhost"),
-        port: int = int(os.getenv("QDRANT_PORT", 6333)),
+        port: int = int(os.getenv("QDRANT_PORT", 6334)),
+
         top_k: int = 50,
         embed_model_name: str = None,
     ):
@@ -58,7 +59,9 @@ class QdrantRetriever:
             self._client = AsyncQdrantClient(
                 host=self._client_host,
                 port=self._client_port,
+                prefer_grpc=True,
             )
+
             elapsed = time.perf_counter() - start
             print(f"[QdrantRetriever] Created AsyncQdrantClient in {elapsed:.2f}s")
         except Exception as e:
@@ -77,7 +80,9 @@ class QdrantRetriever:
         self,
         query: QueryBundle,
         top_k: Optional[int] = None,
+        query_filter: Optional[qmodels.Filter] = None,
     ) -> List[NodeWithScore]:
+
         """
         Primary path:
         Search the `legal_articles` collection and return article-level nodes.
@@ -107,7 +112,9 @@ class QdrantRetriever:
                 collection_name="legal_articles",
                 query=qmodels.NearestQuery(nearest=query_embedding),
                 using="dense",
+                query_filter=query_filter,
                 limit=limit,
+
                 # Keep payload small in candidate stage; full text is hydrated from SQLite later.
                 with_payload=[
                     "article_uuid",

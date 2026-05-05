@@ -32,3 +32,12 @@
 **Metrics:** RAG Core p95 < 200ms.
 
 *Last updated: 2026-05-05*
+
+---
+
+## 🚧 v3.0 Production Scaling & Resilience (2026-05-15)
+**Status**: Initiated
+**Phases**: 18+
+**Key Features**: Semantic Caching, gRPC Migration, Qdrant Pre-filtering, Local Classifier.
+**Metrics**: API Concurrency > 50 req/s, Cache Hit Rate > 40%.
+

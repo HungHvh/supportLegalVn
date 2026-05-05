@@ -18,7 +18,9 @@ from tools.groq_client import GroqClient
 from tools.deepseek_client import DeepSeekClient
 from tools.qwen_dashscope_client import QwenDashScopeClient
 from core.security import llm_circuit_breaker
+from db.qdrant import QdrantManager
 import torch
+
 
 
 def _unique_keep_order(items: List[str]) -> List[str]:
@@ -336,6 +338,9 @@ class LegalRAGPipeline:
             self.client = llm
         else:
             self.client = self._get_client(provider, model_name)
+        
+        self.cache_mgr = QdrantManager()
+
 
         self.qa_prompt_template = (
             "Bạn là một chuyên gia pháp luật Việt Nam cao cấp. "
@@ -408,7 +413,23 @@ class LegalRAGPipeline:
         if chat_history:
             search_query = await self.arewrite_query(query_str, chat_history)
             
+        # 0. Check Semantic Cache
+        query_vector = await self.retriever.vector_retriever._embed_query(search_query)
+        if query_vector:
+            cached_data = await self.cache_mgr.check_semantic_cache(query_vector)
+            if cached_data:
+                print(f"[RAG Pipeline] Semantic Cache HIT")
+                return {
+                    "answer": cached_data.get("answer"),
+                    "citations": cached_data.get("citations", []),
+                    "detected_domains": [],
+                    "confidence_score": 1.0,
+                    "is_cached": True
+                }
+
+
         nodes = await self.retriever.aretrieve(search_query)
+
         print(f"[RAG Pipeline] Retrieved {len(nodes)} nodes in {time.time() - start_time:.2f}s")
 
         nodes.sort(key=lambda n: (_get_legal_priority(n), -float(n.score)))
@@ -423,7 +444,10 @@ class LegalRAGPipeline:
         )
 
         response = await llm_circuit_breaker.call(self.client.generate_content_async, prompt)
+
+            
         print(
+
             f"[RAG Pipeline] Generated prompt of length {len(prompt)} characters, time taken: {time.time() - start_time:.2f}s")
 
         citations = []
@@ -443,6 +467,10 @@ class LegalRAGPipeline:
                 }
             )
 
+        # Save to Cache (Moved after citations are extracted)
+        if query_vector:
+            await self.cache_mgr.save_to_cache(search_query, query_vector, response.text, citations)
+
         return {
             "answer": response.text,
             "citations": citations,
@@ -450,14 +478,28 @@ class LegalRAGPipeline:
             "confidence_score": 0.0,
         }
 
+
     async def astream_query(self, query_str: str, chat_history: Optional[List[Any]] = None) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream the RAG response with metadata."""
         search_query = query_str
         if chat_history:
             search_query = await self.arewrite_query(query_str, chat_history)
             
+        # 0. Check Semantic Cache
+        query_vector = await self.retriever.vector_retriever._embed_query(search_query)
+        if query_vector:
+            cached_data = await self.cache_mgr.check_semantic_cache(query_vector)
+            if cached_data:
+                print(f"[RAG Pipeline] Semantic Cache HIT (Streaming)")
+                yield {"type": "citations", "data": cached_data.get("citations", [])}
+                yield {"type": "token", "content": cached_data.get("answer")}
+                yield {"type": "is_cached", "data": True}
+                return
+
+
         # 1. Retrieval
         nodes = await self.retriever.aretrieve(search_query)
+
         nodes.sort(key=lambda n: (_get_legal_priority(n), -float(n.score)))
 
         # 2. Yield Citations immediately (Option A)
@@ -490,10 +532,12 @@ class LegalRAGPipeline:
             query_str=query_str,
         )
 
-        # 5. Stream Tokens
+        full_response = ""
         async for chunk in llm_circuit_breaker.astream_call(self.client.astream_query, prompt):
             if chunk.text:
+                full_response += chunk.text
                 yield {"type": "token", "content": chunk.text}
+
             
             # Check if classification is ready while streaming
             if classification_task and classification_task.done():
@@ -520,6 +564,12 @@ class LegalRAGPipeline:
                 }
             except Exception as e:
                 print(f"[RAG Pipeline] Classification failed at end: {e}")
+        
+        # 6. Save to Cache
+        if query_vector and full_response:
+            await self.cache_mgr.save_to_cache(search_query, query_vector, full_response, citations)
+
+
 
     async def retrieve_only(self, query_str: str, top_k: int = 15) -> List[Dict[str, Any]]:
         """

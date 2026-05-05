@@ -38,6 +38,11 @@
 - [x] Phase 16: Stream API Integration (Chuyển /ask sang /stream) — completed 2026-05-05
 - [x] Phase 17: API Gateway Layer (Bảo vệ API & Rate Limit) — completed 2026-05-05
 
+### 🚧 v3.0 Production Scaling & Resilience (Planned)
+
+- [x] Phase 18: Tối ưu RAG & Qdrant - Hiệu năng — completed 2026-05-05 [[Plan](file:///c:/Users/hvcng/PycharmProjects/supportLegalVn/.planning/phases/18-optimization-rag-qdrant-performance/18-PLAN.md)]
+
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -63,6 +68,9 @@
 | 15. UI Legal Tags & Rerank | v2.0 | 2/2 | Complete | 2026-05-04 |
 | 16. Stream API Integration | v2.0 | 0/0 | Complete | 2026-05-05 |
 | 17. API Gateway Layer | v2.0 | 6/6 | Complete | 2026-05-05 |
+| 18. Tối ưu RAG & Qdrant | v3.0 | 10/10 | Complete | 2026-05-05 |
+
 
 ---
-*Last updated: 2026-05-05 — Phase 16 added*
+*Last updated: 2026-05-05 — Phase 18 added*
+

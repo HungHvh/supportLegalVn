@@ -14,6 +14,9 @@ class QueryClassification(BaseModel):
     domains: List[str] = Field(description="List of legal domains relevant to the query")
     confidence: float = Field(description="Confidence score for the classification (0.0 to 1.0)")
     is_explicit_filter: bool = Field(description="True if user explicitly requested a specific law or document")
+    nam_ban_hanh: Optional[int] = Field(None, description="Year of enactment if mentioned")
+    linh_vuc: Optional[str] = Field(None, description="Specific legal field for filtering")
+
 
 class LegalQueryClassifier:
     """Classifies legal queries into specific Vietnamese legal domains."""
@@ -53,8 +56,11 @@ Yêu cầu phân loại:
 2. Trường 'domains': Danh sách các lĩnh vực liên quan (ví dụ: ["Criminal", "Land & Real Estate"]). Nếu câu hỏi chung chung hoặc không thuộc các nhóm trên, hãy dùng ["General"].
 3. Trường 'confidence': Độ tin cậy của phân loại (0.0 đến 1.0).
 4. Trường 'is_explicit_filter': Trả về True nếu người dùng nhắc đích danh một văn bản luật cụ thể (ví dụ: 'Luật Đất đai 2024', 'Nghị định 123', 'Điều 15 Bộ luật Hình sự').
+5. Trường 'nam_ban_hanh': Trích xuất năm ban hành văn bản nếu có (ví dụ: 2024). Trả về null nếu không rõ.
+6. Trường 'linh_vuc': Trích xuất lĩnh vực cụ thể để lọc (ví dụ: 'Hình sự', 'Đất đai'). Trả về null nếu không rõ.
 
 Chú ý: DeepSeek, hãy phân tích kỹ ngữ cảnh pháp lý để đưa ra domains chính xác nhất. Không kèm theo giải thích hay markdown.
+
 """
 
         full_prompt = f"{system_prompt}\n\nCâu hỏi: {query}"
