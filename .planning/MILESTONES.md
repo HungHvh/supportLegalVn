@@ -24,4 +24,11 @@
 - **Evaluation Scope**: Benchmarked primarily on Election Law; further evaluation needed for broader domains.
 
 ---
-*Last updated: 2026-04-26*
+
+## 🚧 v2.0 Frontend & Chat (2026-05-05)
+**Status:** Summary Generated
+**Phases:** 6.1-16
+**Key Features:** Next.js Dashboard, Stateless Context Loop, SSE Streaming, Legal Authority Reranking.
+**Metrics:** RAG Core p95 < 200ms.
+
+*Last updated: 2026-05-05*

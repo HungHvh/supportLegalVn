@@ -8,9 +8,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Phase 16 Complete
+- **Status**: Milestone v2.0 Audit Complete
 - **Phase**: 16 (Stream API Integration) — COMPLETE
-- **Next Step**: Milestone 06 Audit & Performance Review
+- **Next Step**: Prepare for v2.0 Ship & Milestone Archival
 
 ## Milestones
 
