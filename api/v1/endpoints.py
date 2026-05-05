@@ -4,6 +4,8 @@ import json
 import asyncio
 import time
 import logging
+import base64
+from typing import Optional, List, Any
 
 from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse
 from pydantic import BaseModel
@@ -23,31 +25,94 @@ async def ask(request: AskRequest, fastapi_req: Request):
 
 @router.post("/stream")
 async def stream_ask(request: AskRequest, fastapi_req: Request):
-    pipeline: fastapi_req.app.state.pipeline
-    
-    async def event_generator():
-        try:
-            # We stream tokens first
-            async for token in pipeline.astream_query(request.query, request.chat_history):
+    pipeline = fastapi_req.app.state.pipeline
+
+    def build_event_generator(query: str, chat_history: Optional[List[Any]]):
+        async def event_generator():
+            try:
+                async for event in pipeline.astream_query(query, chat_history):
+                    # event is already a dict from astream_query
+                    yield {
+                        "event": "message",
+                        "data": json.dumps(event, ensure_ascii=False)
+                    }
+
+                # Send final done signal
                 yield {
                     "event": "message",
-                    "data": json.dumps({"token": token})
+                    "data": json.dumps({"type": "done"})
                 }
-            
-            # In a real implementation, we might want to send 
-            # metadata in the last frame. 
-            # For this POC, we'll just end the stream.
-            yield {
-                "event": "done",
-                "data": json.dumps({"status": "completed"})
-            }
-        except Exception as e:
-            yield {
-                "event": "error",
-                "data": json.dumps({"detail": str(e)})
-            }
+            except Exception as e:
+                logger.error(f"Stream error: {str(e)}", exc_info=True)
+                yield {
+                    "event": "message",
+                    "data": json.dumps({"type": "error", "content": f"Lỗi hệ thống: {str(e)}"})
+                }
 
-    return EventSourceResponse(event_generator())
+        return event_generator()
+
+    return EventSourceResponse(
+        build_event_generator(request.query, request.chat_history),
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+def _parse_chat_history(encoded_history: Optional[str]) -> Optional[List[Any]]:
+    if not encoded_history:
+        return None
+
+    try:
+        decoded = base64.b64decode(encoded_history).decode("utf-8")
+        payload = json.loads(decoded)
+        return payload if isinstance(payload, list) else None
+    except Exception:
+        logger.warning("Invalid chat_history payload in stream GET", exc_info=True)
+        return None
+
+
+@router.get("/stream")
+async def stream_ask_get(query: str, fastapi_req: Request, chat_history: Optional[str] = None):
+    pipeline = fastapi_req.app.state.pipeline
+
+    if not query or len(query.strip()) == 0:
+        raise HTTPException(status_code=400, detail="query cannot be empty")
+
+    parsed_history = _parse_chat_history(chat_history)
+
+    def build_event_generator(query_str: str, history: Optional[List[Any]]):
+        async def event_generator():
+            try:
+                async for event in pipeline.astream_query(query_str, history):
+                    yield {
+                        "event": "message",
+                        "data": json.dumps(event, ensure_ascii=False)
+                    }
+
+                yield {
+                    "event": "message",
+                    "data": json.dumps({"type": "done"})
+                }
+            except Exception as e:
+                logger.error(f"Stream error: {str(e)}", exc_info=True)
+                yield {
+                    "event": "message",
+                    "data": json.dumps({"type": "error", "content": f"Lỗi hệ thống: {str(e)}"})
+                }
+
+        return event_generator()
+
+    return EventSourceResponse(
+        build_event_generator(query.strip(), parsed_history),
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @router.get("/health", response_model=HealthResponse)
 async def health():

@@ -35,6 +35,7 @@
 - [x] Phase 13: Frontend Original Content Display with Highlights — completed 2026-05-04
 - [x] Phase 14: Frontend Chat History Retention and RAG Context Loop — completed 2026-05-04
 - [ ] Phase 15: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank
+- [ ] Phase 16: Stream API Integration (Chuyển /ask sang /stream)
 
 ## Progress
 
@@ -59,6 +60,7 @@
 | 13. Frontend Highlight | v2.0 | 2/2 | Complete | 2026-05-04 |
 | 14. Chat History Context Loop | v2.0 | 4/4 | Complete | 2026-05-04 |
 | 15. UI Legal Tags & Rerank | v2.0 | 2/2 | Complete | 2026-05-04 |
+| 16. Stream API Integration | v2.0 | 0/0 | Planned | - |
 
 ---
-*Last updated: 2026-05-04 — Phase 15 added*
+*Last updated: 2026-05-05 — Phase 16 added*

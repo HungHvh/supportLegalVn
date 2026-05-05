@@ -449,28 +449,76 @@ class LegalRAGPipeline:
             "confidence_score": 0.0,
         }
 
-    async def astream_query(self, query_str: str, chat_history: Optional[List[Any]] = None) -> AsyncGenerator[str, None]:
-        """Stream the RAG response."""
+    async def astream_query(self, query_str: str, chat_history: Optional[List[Any]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """Stream the RAG response with metadata."""
         search_query = query_str
         if chat_history:
             search_query = await self.arewrite_query(query_str, chat_history)
             
+        # 1. Retrieval
         nodes = await self.retriever.aretrieve(search_query)
-
         nodes.sort(key=lambda n: (_get_legal_priority(n), -float(n.score)))
 
+        # 2. Yield Citations immediately (Option A)
+        citations = []
+        seen_sources = set()
+        for n in nodes:
+            source_name = f"{n.node.metadata.get('so_ky_hieu')} - {n.node.metadata.get('article_title')}"
+            if source_name in seen_sources:
+                continue
+            seen_sources.add(source_name)
+            citations.append({
+                "source": source_name,
+                "text": n.node.get_content()[:300] + "...",
+                "score": float(n.score),
+                "article_uuid": str(n.node.metadata.get("article_uuid") or n.node.node_id),
+            })
+        yield {"type": "citations", "data": citations}
+
+        # 3. Start Classification in background (don't wait for it to start streaming)
+        classification_task = None
+        if hasattr(self.retriever, "classifier") and self.retriever.classifier:
+            classification_task = asyncio.create_task(self.retriever.classifier.classify(search_query))
+
+        # 4. Prompt construction
         context_str = _build_context_str(nodes)
         chat_history_str = self._format_chat_history(chat_history)
-
         prompt = self.qa_prompt_template.format(
             context_str=context_str,
             chat_history_str=chat_history_str,
             query_str=query_str,
         )
 
+        # 5. Stream Tokens
         async for chunk in self.client.astream_query(prompt):
             if chunk.text:
-                yield chunk.text
+                yield {"type": "token", "content": chunk.text}
+            
+            # Check if classification is ready while streaming
+            if classification_task and classification_task.done():
+                try:
+                    classification = classification_task.result()
+                    yield {
+                        "type": "classification", 
+                        "domains": classification.domains,
+                        "confidence": classification.confidence
+                    }
+                    classification_task = None # Only yield once
+                except Exception as e:
+                    print(f"[RAG Pipeline] Classification failed: {e}")
+                    classification_task = None
+
+        # 6. Final classification check if not already sent
+        if classification_task:
+            try:
+                classification = await classification_task
+                yield {
+                    "type": "classification", 
+                    "domains": classification.domains,
+                    "confidence": classification.confidence
+                }
+            except Exception as e:
+                print(f"[RAG Pipeline] Classification failed at end: {e}")
 
     async def retrieve_only(self, query_str: str, top_k: int = 15) -> List[Dict[str, Any]]:
         """

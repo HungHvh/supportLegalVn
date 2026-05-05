@@ -64,8 +64,48 @@ export default function ChatSidebar({ messages, onSendMessage, isLoading }: Chat
                     ? "bg-zinc-800 text-white rounded-tr-sm" 
                     : "bg-white border border-zinc-200 text-zinc-800 shadow-sm rounded-tl-sm"
                 }`}>
+                  {/* Domains/Badges */}
+                  {msg.role === "agent" && msg.domains && msg.domains.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                      {msg.domains.map((domain) => {
+                        let label = domain;
+                        let colorClass = "bg-zinc-100 text-zinc-600 border-zinc-200";
+                        
+                        // Mapping English IDs from Classifier to Vietnamese Labels & Styles
+                        if (domain === "Criminal") {
+                          label = "Hình sự";
+                          colorClass = "bg-red-50 text-red-600 border-red-100";
+                        } else if (domain === "Civil & Family") {
+                          label = "Dân sự";
+                          colorClass = "bg-blue-50 text-blue-600 border-blue-100";
+                        } else if (domain === "Administrative & Tax") {
+                          label = "Hành chính";
+                          colorClass = "bg-amber-50 text-amber-600 border-amber-100";
+                        } else if (domain === "Business & Commercial") {
+                          label = "Kinh doanh";
+                          colorClass = "bg-emerald-50 text-emerald-600 border-emerald-100";
+                        } else if (domain === "Labor & Insurance") {
+                          label = "Lao động";
+                          colorClass = "bg-indigo-50 text-indigo-600 border-indigo-100";
+                        } else if (domain === "Land & Real Estate") {
+                          label = "Đất đai";
+                          colorClass = "bg-orange-50 text-orange-600 border-orange-100";
+                        }
+                        
+                        return (
+                          <span key={domain} className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${colorClass}`}>
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="text-sm whitespace-pre-wrap leading-relaxed font-sans">
                     {msg.content}
+                    {msg.streaming && (
+                      <span className="inline-block w-1.5 h-4 ml-1 bg-blue-600 animate-pulse align-middle" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -73,19 +113,6 @@ export default function ChatSidebar({ messages, onSendMessage, isLoading }: Chat
           ))
         )}
         
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="flex max-w-[85%] gap-3 flex-row">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-                <Bot size={16} className="text-white"/>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-sm rounded-tl-sm flex items-center gap-2 text-zinc-500 text-sm">
-                <Loader2 size={16} className="animate-spin text-blue-600" />
-                Đang phân tích và tìm kiếm văn bản...
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 

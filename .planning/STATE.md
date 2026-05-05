@@ -8,10 +8,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Phase 15 Complete
-- **Phase**: 15 (Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank) — COMPLETE
-- **Report**: .planning/phases/15-ui-legal-tags-rerank/15-SUMMARY.md
-- **Next Step**: Milestone Audit
+- **Status**: Phase 16 Complete
+- **Phase**: 16 (Stream API Integration) — COMPLETE
+- **Next Step**: Milestone 06 Audit & Performance Review
 
 ## Milestones
 
@@ -20,6 +19,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - [x] **v1.2 Quality Assurance** - Phase 6 (Retrieval Evaluation)
 
 ## Recent Activity
+- **2026-05-05**: Phase 16 ADDED: Stream API Integration (Chuyển /ask sang /stream).
 - **2026-05-04**: Phase 15 COMPLETE: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
 - **2026-05-04**: Phase 14 COMPLETE: Frontend Chat History Retention and RAG Context Loop.
 - **2026-05-04**: Phase 13 COMPLETE: Frontend Original Content Display with Highlights implemented in MainPane.
@@ -58,10 +58,11 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - Phase 13 added: Frontend Original Content Display with Highlights.
 - Phase 14 added: Frontend Chat History Retention and RAG Context Loop.
 - Phase 15 added: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
+- Phase 16 added: Stream API Integration (Chuyển /ask sang /stream).
 
 ## Pending Todos
 
 (No pending todos)
 
 ---
-*Last updated: 2026-05-04*
+*Last updated: 2026-05-05*
