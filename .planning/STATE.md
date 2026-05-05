@@ -8,9 +8,10 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 **Current focus**: Milestone 06 Audit & Cleanup
 
 ## Current Status
-- **Status**: Milestone v3.0 Initiation
-- **Phase**: 18 (Tối ưu RAG & Qdrant - Hiệu năng) — PLANNED
-- **Next Step**: Start implementation of Semantic Cache in Phase 18
+- **Status**: Milestone v3.0 Execution
+- **Phase**: 18 (Tối ưu RAG & Qdrant - Hiệu năng) — COMPLETE
+- **Next Step**: Define next phases for Milestone v3.0 stability
+
 
 
 ## Milestones
@@ -20,7 +21,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 - [x] **v1.2 Quality Assurance** - Phase 6 (Retrieval Evaluation)
 
 ## Recent Activity
+- **2026-05-05**: Phase 18 COMPLETE: Tối ưu RAG & Qdrant - Hiệu năng. Implemented gRPC, Semantic Cache with persistent client, and metadata pre-filtering.
 - **2026-05-05**: Phase 17 COMPLETE: API Gateway Layer (Bảo vệ API & Rate Limit) implemented with cachetools and custom Circuit Breaker.
+
 - **2026-05-05**: Phase 16 COMPLETE: Stream API Integration (Chuyển /ask sang /stream).
 - **2026-05-04**: Phase 15 COMPLETE: Cải thiện UI chuẩn ngành luật với Tag phân loại và Rerank.
 - **2026-05-04**: Phase 14 COMPLETE: Frontend Chat History Retention and RAG Context Loop.
