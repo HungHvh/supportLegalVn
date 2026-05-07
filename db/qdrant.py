@@ -3,11 +3,13 @@ import os
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
+from core.qdrant_config import resolve_qdrant_connection
+
 class QdrantManager:
     def __init__(self, host: str = None, port: int = None):
-        self.host = host or os.getenv("QDRANT_HOST", "localhost")
-        # Chuyển mặc định sang 6334 cho gRPC
-        self.port = int(port or os.getenv("QDRANT_PORT", 6334))
+        settings = resolve_qdrant_connection(default_host=host or "localhost", default_port=port or 6334)
+        self.host = settings.host
+        self.port = settings.port
         # Sử dụng prefer_grpc=True để tối ưu hiệu năng
         self.client = QdrantClient(host=self.host, port=self.port, prefer_grpc=True)
         

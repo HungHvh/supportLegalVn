@@ -3,6 +3,7 @@
 import { useState } from "react";
 import MainPane from "@/components/MainPane";
 import ChatSidebar from "@/components/ChatSidebar";
+import { buildApiUrl } from "@/lib/apiBaseUrl";
 
 export interface Citation {
   source?: string;
@@ -55,7 +56,7 @@ export default function Home() {
 
     try {
       const encodedHistory = encodeBase64(JSON.stringify(chatHistoryWindow));
-      const url = new URL("http://localhost:8000/api/v1/stream");
+      const url = new URL(buildApiUrl("/api/v1/stream"));
       url.searchParams.set("query", content);
       if (chatHistoryWindow.length > 0) {
         url.searchParams.set("chat_history", encodedHistory);

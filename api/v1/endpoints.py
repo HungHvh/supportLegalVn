@@ -10,6 +10,7 @@ from typing import Optional, List, Any
 from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse
 from api.dependencies import rate_limit_ask, rate_limit_search
 from pydantic import BaseModel
+from core.health import build_health_status
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,16 @@ class TestRAGRequest(BaseModel):
     query: str
 
 router = APIRouter()
+
+
+def _stream_iterator(pipeline, query: str, chat_history: Optional[List[Any]]):
+    try:
+        return pipeline.astream_query(query, chat_history)
+    except TypeError as exc:
+        message = str(exc)
+        if "positional" not in message and "argument" not in message:
+            raise
+        return pipeline.astream_query(query)
 
 @router.post("/ask", response_model=AskResponse, dependencies=[Depends(rate_limit_ask)])
 async def ask(request: AskRequest, fastapi_req: Request):
@@ -31,7 +42,7 @@ async def stream_ask(request: AskRequest, fastapi_req: Request):
     def build_event_generator(query: str, chat_history: Optional[List[Any]]):
         async def event_generator():
             try:
-                async for event in pipeline.astream_query(query, chat_history):
+                async for event in _stream_iterator(pipeline, query, chat_history):
                     # event is already a dict from astream_query
                     yield {
                         "event": "message",
@@ -87,7 +98,7 @@ async def stream_ask_get(query: str, fastapi_req: Request, chat_history: Optiona
     def build_event_generator(query_str: str, history: Optional[List[Any]]):
         async def event_generator():
             try:
-                async for event in pipeline.astream_query(query_str, history):
+                async for event in _stream_iterator(pipeline, query_str, history):
                     yield {
                         "event": "message",
                         "data": json.dumps(event, ensure_ascii=False)
@@ -117,13 +128,7 @@ async def stream_ask_get(query: str, fastapi_req: Request, chat_history: Optiona
 
 @router.get("/health", response_model=HealthResponse)
 async def health():
-    # Basic health check
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "db_connected": True, # Should be verified with real ping
-        "qdrant_connected": True # Should be verified with real ping
-    }
+    return await build_health_status()
 
 @router.post("/test-rag", dependencies=[Depends(rate_limit_ask)])
 async def test_rag_endpoint(request: TestRAGRequest, fastapi_req: Request):

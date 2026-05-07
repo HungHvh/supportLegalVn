@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { buildApiUrl } from '@/lib/apiBaseUrl';
 
 export interface ArticleResult {
   article_uuid: string;
@@ -45,7 +46,7 @@ export function useSearchHighlight() {
         requestBody.article_uuid = article_uuid;
       }
       
-      const response = await fetch("http://localhost:8000/api/v1/search-articles", {
+      const response = await fetch(buildApiUrl("/api/v1/search-articles"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -20,9 +20,8 @@ uvicorn
 sse-starlette
 httpx
 aiosqlite
-fastembed; platform_system != "Windows"
+fastembed
 langchain-google-genai
 tabulate
 tenacity
 cachetools==5.3.3
-

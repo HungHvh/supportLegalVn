@@ -1,0 +1,31 @@
+# 1. Bỏ qua toàn bộ Data & Databases (Nguyên nhân chính gây phình to)
+sqlite_data/
+*.db
+*.sqlite
+*.sqlite3
+qdrant_data/
+data/
+
+# 2. Bỏ qua Python Virtual Environment
+venv/
+env/
+.venv/
+
+# 3. Bỏ qua Cache & Compiled code
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 4. Bỏ qua Environment variables & Git
+.env
+.git/
+.gitignore
+
+# 5. Bỏ qua các file log hoặc rác khác nếu có
+*.log
+
+# 6 bỏ backups hoặc file tạm
+*.bak
+*.tmp
+backups/

@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) frontend for supportLegal.
 
 ## Getting Started
 
@@ -15,6 +15,31 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### API base URL
+
+This app reads the backend origin from `NEXT_PUBLIC_API_BASE_URL`.
+
+Create a local `.env.local` file with:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+For Vercel production, set `NEXT_PUBLIC_API_BASE_URL` to your public API domain, for example:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://api.domain.com
+```
+
+`NEXT_PUBLIC_API_BASE_URL` is required in production. If it is missing, the app will fail fast instead of silently falling back to localhost.
+
+## Production deployment
+
+- Deploy the frontend to Vercel.
+- Set `NEXT_PUBLIC_API_BASE_URL` in the Vercel environment settings for each branch/environment.
+- Keep `.env.local` for local development only.
+- Do not hardcode `localhost` in production code paths.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

@@ -23,6 +23,7 @@ class AskResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    service: str = "legal-api"
     version: str
     db_connected: bool
     qdrant_connected: bool

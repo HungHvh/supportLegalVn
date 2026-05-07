@@ -10,12 +10,21 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6334
+      - SQLITE_DB_PATH=/data/legal_poc.db
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_healthy
     networks:
       - legal-network
     volumes:
-      - .:/app
+#      - .:/app
+      - ./sqlite_data:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e \"GET /readyz HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q \"healthz check passed\"' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -28,6 +37,12 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - legal-network
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e \"GET /readyz HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q \"healthz check passed\"' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -40,3 +55,4 @@ networks:
 
 volumes:
   qdrant_data:
+  sqlite_data:

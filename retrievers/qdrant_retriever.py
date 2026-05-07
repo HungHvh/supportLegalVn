@@ -8,6 +8,7 @@ from qdrant_client.http import models as qmodels
 # from torch.nn.functional import embedding
 
 from core.constants import SAFE_EMBEDDING_MODEL_NAME
+from core.qdrant_config import resolve_qdrant_connection
 
 
 class QdrantRetriever:
@@ -42,9 +43,10 @@ class QdrantRetriever:
             print(f"[Warning] Qdrant embed model unavailable: {e}")
             self.embed_model = None
 
+        settings = resolve_qdrant_connection(default_host=host, default_port=port)
         self._client = None
-        self._client_host = host
-        self._client_port = port
+        self._client_host = settings.host
+        self._client_port = settings.port
         self.collection_name = collection_name
         self.top_k = top_k
 

@@ -9,13 +9,15 @@ env/
 venv/
 ENV/
 .env
+.env.local
+.env.*.local
 
 # Docker
 .docker/
 
 # Application Specific
 .cache/
-legal_poc.db
+sqlite_data/legal_poc.db
 *.db
 *.log
 
@@ -26,8 +28,8 @@ legal_poc.db
 # Local data
 data/
 qdrant_data/
+backups/
 outputs/
-./tmp_legal_poc.db
-./legal_data.db
+sqlite_data/legal_data.db
 # Bỏ qua tất cả file báo cáo phase trong thư mục planning
 .planning/reports/phase*

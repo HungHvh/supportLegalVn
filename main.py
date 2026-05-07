@@ -14,7 +14,7 @@ from core.embeddings import VietnameseSBERTProvider
 print("1. Đang khởi tạo Database và Model...")
 
 # Khởi tạo SQLite (Lưu file text và FTS5)
-db_conn = sqlite3.connect("legal_poc.db")
+db_conn = sqlite3.connect("sqlite_data/legal_poc.db")
 cursor = db_conn.cursor()
 
 # Xóa bảng cũ nếu chạy lại script

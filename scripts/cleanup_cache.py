@@ -3,13 +3,16 @@ import os
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
+from core.qdrant_config import resolve_qdrant_connection
+
 def cleanup_cache(days=30):
     """
     Xóa các points trong semantic_cache có created_at cũ hơn số ngày quy định.
     """
-    host = os.getenv("QDRANT_HOST", "localhost")
+    settings = resolve_qdrant_connection()
+    host = settings.host
     # Sử dụng port gRPC 6334 theo kế hoạch Phase 18
-    port = int(os.getenv("QDRANT_PORT", 6334))
+    port = settings.port
     
     try:
         client = QdrantClient(host=host, port=port, prefer_grpc=True)
