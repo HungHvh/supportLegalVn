@@ -6,6 +6,8 @@ from typing import List, Optional
 from llama_index.core import QueryBundle
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.schema import NodeWithScore, TextNode
+
+from core.constants import SQLITE_PATH
 from db.sqlite import normalize_so_ky_hieu_key
 
 
@@ -21,7 +23,7 @@ class SQLiteFTS5Retriever(BaseRetriever):
     - chunk-level FTS5 search via chunks_fts.
     """
 
-    def __init__(self, db_path: str = "legal_poc.db", top_k: int = 50):
+    def __init__(self, db_path: str = SQLITE_PATH, top_k: int = 50):
         self.db_path = db_path
         self.top_k = top_k
         self._article_fts_table: Optional[str] = None

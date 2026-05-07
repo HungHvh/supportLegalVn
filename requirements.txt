@@ -1,27 +1,35 @@
+# --- Core Data & Utilities ---
 pandas
 datasets
-qdrant-client
-sentence-transformers
-langchain-text-splitters
 pydantic-settings
 python-dotenv
+tabulate
+tenacity
+cachetools==5.3.3
 
+# --- LLM Ecosystem & Gemini SDK ---
 llama-index
 llama-index-llms-gemini
-llama-index-embeddings-huggingface
+langchain-google-genai
+langchain-text-splitters
+google-genai
+
+# --- Vector DB & PyTorch Embeddings ---
+qdrant-client
 llama-index-vector-stores-qdrant
+llama-index-embeddings-huggingface
+
+# --- Observability & Evaluation ---
 ragas
 arize-phoenix
 
-pytest
-pytest-asyncio
+# --- API & Backend ---
 fastapi
 uvicorn
 sse-starlette
 httpx
 aiosqlite
-fastembed
-langchain-google-genai
-tabulate
-tenacity
-cachetools==5.3.3
+
+# --- Testing ---
+pytest
+pytest-asyncio

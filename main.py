@@ -6,6 +6,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
+from core.constants import SQLITE_PATH
 from core.embeddings import VietnameseSBERTProvider
 
 # ==========================================
@@ -14,7 +15,7 @@ from core.embeddings import VietnameseSBERTProvider
 print("1. Đang khởi tạo Database và Model...")
 
 # Khởi tạo SQLite (Lưu file text và FTS5)
-db_conn = sqlite3.connect("sqlite_data/legal_poc.db")
+db_conn = sqlite3.connect(SQLITE_PATH)
 cursor = db_conn.cursor()
 
 # Xóa bảng cũ nếu chạy lại script

@@ -2,6 +2,8 @@ import sqlite3
 import os
 import unicodedata
 
+from core.constants import SQLITE_PATH
+
 
 def normalize_so_ky_hieu_key(value: str | None) -> str:
     if not value:
@@ -17,15 +19,23 @@ def normalize_so_ky_hieu_key(value: str | None) -> str:
 def normalize_so_ky_hieu(value: str | None) -> str:
     return normalize_so_ky_hieu_key(value)
 
-def get_db_connection(db_path: str = "legal_poc.db") -> sqlite3.Connection:
+def get_db_connection(db_path: str = SQLITE_PATH) -> sqlite3.Connection:
     """
     Tạo kết nối tới SQLite với các tùy chỉnh tối ưu cho tập dữ liệu lớn.
     """
     db_path = os.getenv("SQLITE_DB_PATH", db_path)
+    # Convert relative paths to absolute paths based on project root
+    if not os.path.isabs(db_path):
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        db_path = os.path.join(project_root, db_path)
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
     # Kích hoạt WAL mode để tối ưu đọc/ghi đồng thời
     try:
-        conn.execute("PRAGMA journal_mode = WAL;")
+        # lỗi mount giữa window và linux có thể
+        # conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA journal_mode = DELETE;")
     except sqlite3.OperationalError:
         # Một số filesystem (bind mounts trên Windows, vboxfs, vfs) không hỗ trợ WAL.
         # Trong trường hợp đó, fallback về DELETE để tránh disk I/O error.
@@ -44,12 +54,18 @@ def get_db_connection(db_path: str = "legal_poc.db") -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db(db_path: str = "legal_poc.db", drop_existing: bool = False):
+def init_db(db_path: str = SQLITE_PATH, drop_existing: bool = False):
     """
     Khởi tạo cấu trúc bảng cho Phase 10: Parent-Document Retrieval.
     Bao gồm bảng legal_articles (Điều) và legal_chunks (Khoản/Điểm).
     """
     db_path = os.getenv("SQLITE_DB_PATH", db_path)
+    # Convert relative paths to absolute paths based on project root
+    if not os.path.isabs(db_path):
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        db_path = os.path.join(project_root, db_path)
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
 

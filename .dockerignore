@@ -10,6 +10,8 @@ data/
 venv/
 env/
 .venv/
+.venv_*/
+venv_*/
 
 # 3. Bỏ qua Cache & Compiled code
 __pycache__/

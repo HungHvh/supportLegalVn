@@ -11,11 +11,12 @@ class QdrantManager:
         self.host = settings.host
         self.port = settings.port
         # Sử dụng prefer_grpc=True để tối ưu hiệu năng
-        self.client = QdrantClient(host=self.host, port=self.port, prefer_grpc=True)
+        # check_compatibility=False to suppress version warning when server is not immediately available
+        self.client = QdrantClient(host=self.host, port=self.port, prefer_grpc=True, check_compatibility=False)
         
         # Khởi tạo sẵn Async client để dùng chung, tránh đóng mở liên tục
         from qdrant_client import AsyncQdrantClient
-        self.async_client = AsyncQdrantClient(host=self.host, port=self.port, prefer_grpc=True)
+        self.async_client = AsyncQdrantClient(host=self.host, port=self.port, prefer_grpc=True, check_compatibility=False)
 
 
 

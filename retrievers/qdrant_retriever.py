@@ -62,6 +62,7 @@ class QdrantRetriever:
                 host=self._client_host,
                 port=self._client_port,
                 prefer_grpc=True,
+                check_compatibility=False,
             )
 
             elapsed = time.perf_counter() - start

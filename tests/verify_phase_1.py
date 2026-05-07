@@ -3,6 +3,8 @@ import sqlite3
 import os
 import sys
 
+from core.constants import SQLITE_PATH
+
 # Thêm root dự án vào path để import được các module
 sys.path.append(os.getcwd())
 
@@ -23,7 +25,7 @@ async def test_embedding_provider():
 
 def test_sqlite_tokenizer():
     print("\n--- Testing SQLite FTS5 Vietnamese Tokenizer ---")
-    db_path = "legal_poc.db"
+    db_path = SQLITE_PATH
     try:
         conn = sqlite3.connect(db_path)
         # Chèn thử dữ liệu có dấu

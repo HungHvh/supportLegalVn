@@ -5,6 +5,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 from typing import Any, Dict
 
+from core.constants import SQLITE_PATH
 from core.qdrant_config import resolve_qdrant_connection
 
 
@@ -37,7 +38,7 @@ def _check_qdrant() -> bool:
 
 
 async def build_health_status() -> Dict[str, Any]:
-    db_path = os.getenv("SQLITE_DB_PATH", "legal_poc.db")
+    db_path = os.getenv("SQLITE_DB_PATH", SQLITE_PATH)
     db_connected, qdrant_connected = await asyncio.gather(
         asyncio.to_thread(_check_sqlite, db_path),
         asyncio.to_thread(_check_qdrant),

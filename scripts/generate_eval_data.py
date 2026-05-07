@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Config
-DB_PATH = os.getenv("SQLITE_DB_PATH", "legal_poc.db")
+DB_PATH = os.getenv("SQLITE_DB_PATH", "sqlite_data/legal_poc.db")
 OUTPUT_PATH = ".planning/phases/06-retrieval-evaluation/golden_set_synthetic.json"
 MODEL_NAME = "gemini-2.0-flash"
 TARGET_DOCS_COUNT = 10 

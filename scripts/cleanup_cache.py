@@ -15,7 +15,7 @@ def cleanup_cache(days=30):
     port = settings.port
     
     try:
-        client = QdrantClient(host=host, port=port, prefer_grpc=True)
+        client = QdrantClient(host=host, port=port, prefer_grpc=True, check_compatibility=False)
         
         # Tính toán mốc thời gian xóa
         cutoff = int(time.time()) - (days * 24 * 60 * 60)

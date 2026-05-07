@@ -1,6 +1,9 @@
 import sqlite3
 
-def build_article_fts(db_path="legal_poc.db"):
+from core.constants import SQLITE_PATH
+
+
+def build_article_fts(db_path=SQLITE_PATH):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 

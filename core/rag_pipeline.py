@@ -8,9 +8,10 @@ from typing import List, Dict, Any, Optional, AsyncGenerator, Tuple
 from llama_index.core.retrievers import BaseRetriever
 from llama_index.core import QueryBundle
 from llama_index.core.schema import NodeWithScore, TextNode
-from sentence_transformers import CrossEncoder
+# from sentence_transformers import CrossEncoder
 
 from core.classifier import LegalQueryClassifier
+from core.constants import SQLITE_PATH
 from retrievers.sqlite_retriever import SQLiteFTS5Retriever
 from retrievers.qdrant_retriever import QdrantRetriever
 from tools.gemini_client import GeminiClient
@@ -19,7 +20,7 @@ from tools.deepseek_client import DeepSeekClient
 from tools.qwen_dashscope_client import QwenDashScopeClient
 from core.security import llm_circuit_breaker
 from db.qdrant import QdrantManager
-import torch
+# import torch
 
 
 
@@ -84,7 +85,7 @@ class LegalHybridRetriever(BaseRetriever):
         classifier: LegalQueryClassifier,
         vector_retriever: QdrantRetriever,
         fts_retriever: SQLiteFTS5Retriever,
-        db_path: str = "legal_poc.db",
+        db_path: str = os.getenv("SQLITE_DB_PATH", SQLITE_PATH),
         rrf_k: int = 60,
         top_k: int = 5,
         article_top_k: int = 20,
@@ -367,7 +368,7 @@ class LegalRAGPipeline:
         if provider == "gemini":
             return GeminiClient(model_name=model_name or "gemini-2.0-flash")
         elif provider == "groq":
-            return GroqClient(model_name=model_name or "llama-3.1-70b")
+            return GroqClient(model_name=model_name or "llama-3.1-8b-instant")
         elif provider == "deepseek":
             return DeepSeekClient(model_name=model_name or "deepseek-chat")
         elif provider == "dashscope":

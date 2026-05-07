@@ -2,6 +2,8 @@ import os
 import sqlite3
 import unicodedata
 
+from core.constants import SQLITE_PATH
+
 
 def normalize_so_ky_hieu(value: str | None) -> str:
     if not value:
@@ -13,7 +15,7 @@ def normalize_so_ky_hieu(value: str | None) -> str:
     return " ".join(text.split())
 
 
-def build_so_ky_hieu_index(db_path: str = "legal_poc.db") -> None:
+def build_so_ky_hieu_index(db_path: str = SQLITE_PATH) -> None:
     db_path = os.getenv("SQLITE_DB_PATH", db_path)
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()

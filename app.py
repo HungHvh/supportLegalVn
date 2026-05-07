@@ -162,7 +162,7 @@ async def lifespan(app: FastAPI):
         )
         
         generation_provider = os.getenv("GENERATION_PROVIDER", "groq")
-        generation_model = os.getenv("GENERATION_MODEL", "llama-3.1-70b")
+        generation_model = os.getenv("GENERATION_MODEL", "llama-3.1-8b-instant")
         
         app.state.pipeline = LegalRAGPipeline(
             retriever=hybrid_retriever, 

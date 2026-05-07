@@ -7,7 +7,7 @@ import logging
 import base64
 from typing import Optional, List, Any
 
-from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse
+from api.models import AskRequest, AskResponse, HealthResponse, SearchArticlesRequest, SearchArticlesResponse, ChatMessage
 from api.dependencies import rate_limit_ask, rate_limit_search
 from pydantic import BaseModel
 from core.health import build_health_status
@@ -20,7 +20,7 @@ class TestRAGRequest(BaseModel):
 router = APIRouter()
 
 
-def _stream_iterator(pipeline, query: str, chat_history: Optional[List[Any]]):
+def _stream_iterator(pipeline, query: str, chat_history: Optional[List[ChatMessage]]):
     try:
         return pipeline.astream_query(query, chat_history)
     except TypeError as exc:
@@ -39,7 +39,7 @@ async def ask(request: AskRequest, fastapi_req: Request):
 async def stream_ask(request: AskRequest, fastapi_req: Request):
     pipeline = fastapi_req.app.state.pipeline
 
-    def build_event_generator(query: str, chat_history: Optional[List[Any]]):
+    def build_event_generator(query: str, chat_history: Optional[List[ChatMessage]]):
         async def event_generator():
             try:
                 async for event in _stream_iterator(pipeline, query, chat_history):
@@ -73,14 +73,17 @@ async def stream_ask(request: AskRequest, fastapi_req: Request):
     )
 
 
-def _parse_chat_history(encoded_history: Optional[str]) -> Optional[List[Any]]:
+def _parse_chat_history(encoded_history: Optional[str]) -> Optional[List[ChatMessage]]:
     if not encoded_history:
         return None
 
     try:
         decoded = base64.b64decode(encoded_history).decode("utf-8")
         payload = json.loads(decoded)
-        return payload if isinstance(payload, list) else None
+        if not isinstance(payload, list):
+            return None
+
+        return [ChatMessage.model_validate(msg) for msg in payload]
     except Exception:
         logger.warning("Invalid chat_history payload in stream GET", exc_info=True)
         return None
@@ -95,7 +98,7 @@ async def stream_ask_get(query: str, fastapi_req: Request, chat_history: Optiona
 
     parsed_history = _parse_chat_history(chat_history)
 
-    def build_event_generator(query_str: str, history: Optional[List[Any]]):
+    def build_event_generator(query_str: str, history: Optional[List[ChatMessage]]):
         async def event_generator():
             try:
                 async for event in _stream_iterator(pipeline, query_str, history):
