@@ -416,6 +416,8 @@ class LegalRAGPipeline:
             
         # 0. Check Semantic Cache
         query_vector = await self.retriever.vector_retriever._embed_query(search_query)
+        if not query_vector:
+            print(f"[RAG Pipeline] Warning: Failed to embed query for semantic cache check.")
         if query_vector:
             cached_data = await self.cache_mgr.check_semantic_cache(query_vector)
             if cached_data:
